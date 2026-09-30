@@ -1,0 +1,29 @@
+{
+  "name": "stumble-party",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build -w client && npm run build -w server",
+    "typecheck": "tsc -p shared && tsc -p server && tsc -p client && tsc -p tools",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "loadtest": "tsx tools/loadtest.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.19.0",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
