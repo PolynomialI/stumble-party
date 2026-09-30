@@ -6,3 +6,6 @@ export * from './maps/index';
 export * from './sim/obstacles';
 export * from './sim/world';
 export * from './sim/character';
+export * from './customize';
+export * from './game/course';
+export * from './sim/bot';

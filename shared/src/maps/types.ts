@@ -90,6 +90,10 @@ export interface BotNode {
   dive?: boolean;
   /** Lateral spread bots may use around this node. */
   spread?: number;
+  /** Minimum lateral offset (keeps bots off hubs and posts in the middle of the lane). */
+  avoid?: number;
+  /** Discrete lateral offsets to choose from instead of a spread (e.g. one per bounce pad). */
+  lanes?: number[];
 }
 
 export interface Theme {

@@ -203,9 +203,10 @@ function slideMove(pw: PhysicsWorld, p: { x: number; y: number; z: number }, dx:
     const hit = _hitPool.pop() ?? { collider: h.collider, nx, ny, nz };
     hit.collider = h.collider; hit.nx = nx; hit.ny = ny; hit.nz = nz;
     _hits.push(hit);
-    // Steep surfaces act as vertical walls so you cannot climb them by walking into them.
+    // Steep surfaces act as vertical walls for upward motion so you cannot climb them by walking into them.
+    // Falling onto one uses the true normal, so you slide off rounded edges instead of hanging on them.
     let px = nx, py = ny, pz = nz;
-    if (Math.abs(ny) < CHAR.minGroundNy) {
+    if (Math.abs(ny) < CHAR.minGroundNy && ry > 0) {
       const hl = Math.hypot(nx, nz);
       if (hl > 1e-4) { px = nx / hl; py = 0; pz = nz / hl; }
     }
@@ -375,10 +376,12 @@ export function stepCharacter(pw: PhysicsWorld, c: CharState, inp: InputCmd): vo
     }
   }
 
-  // Ground: snap down small steps while walking, detect landings.
+  // Ground: snap down small steps while walking, detect landings. A fall that was blocked by steep
+  // geometry (wedged in a crevice, perched on a rim) counts as supported, so you can always jump out.
   const ground = rising ? null : probeGround(pw, _p, wasGrounded ? CHAR.snapDown : 0.06);
-  if (ground) {
-    if (ground.time_of_impact > SKIN) _p.y -= ground.time_of_impact - SKIN;
+  const supported = !ground && !rising && my < -0.02 && _p.y - c.py > my * 0.25;
+  if (ground || supported) {
+    if (ground && ground.time_of_impact > SKIN) _p.y -= ground.time_of_impact - SKIN;
     if (!wasGrounded) {
       c.fx |= FX_LAND;
       c.diveUsed = false;

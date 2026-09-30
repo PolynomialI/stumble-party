@@ -1,8 +1,10 @@
 import { LOBBY } from './lobby';
+import { TUMBLETOP } from './tumbletop';
 import type { MapDef } from './types';
 
 export const MAPS: Record<string, MapDef> = {
   [LOBBY.id]: LOBBY,
+  [TUMBLETOP.id]: TUMBLETOP,
 };
 
 export function getMap(id: string): MapDef {

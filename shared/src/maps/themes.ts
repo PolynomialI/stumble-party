@@ -9,7 +9,7 @@ const base: Record<MatKey, number> = {
 
 /** Bright midday sky: blue floors, candy obstacles. */
 export const SUNNY: Theme = {
-  skyTop: 0x2c86ff, skyHorizon: 0xc4ecff, skyBottom: 0xf2fbff, fog: 0xcfeeff,
+  skyTop: 0x1a73f5, skyHorizon: 0xa9e2ff, skyBottom: 0xe8f7ff, fog: 0xb9e6ff,
   sunColor: 0xfff4de, sunDir: [0.45, 0.8, 0.35], cloudTint: 0xffffff,
   palette: base,
 };

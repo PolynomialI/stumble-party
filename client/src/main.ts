@@ -1,5 +1,5 @@
 import './style.css';
-import { GAME_TITLE, getMap, initPhysics } from '@sp/shared';
+import { GAME_TITLE, HATS, PATTERNS, getMap, initPhysics, randomIdentity } from '@sp/shared';
 import { Input } from './input/Input';
 import { TouchControls } from './input/TouchControls';
 import { PracticeGame } from './game/PracticeGame';
@@ -18,7 +18,20 @@ async function boot() {
   input.onDeviceChange = (d) => touch.setVisible(d === 'touch');
   canvas.addEventListener('click', () => input.requestPointerLock());
 
-  const game = new PracticeGame(r, input, getMap('lobby'));
+  const params = new URLSearchParams(location.search);
+  const game = new PracticeGame(r, input, getMap(params.get('map') ?? 'lobby'), randomIdentity(Number(params.get('seed') ?? 7)).look, ui);
+  if (params.has('showcase')) {
+    const hats = HATS.map((_, h) => ({ body: (h * 3) % 16, accent: (h * 5 + 2) % 16, pattern: h % PATTERNS.length, hat: h }));
+    game.showcase(hats);
+    game.cam.distance = 9;
+  }
+  if (params.has('closeup')) {
+    game.cam.distance = params.has('showcase') ? 8.5 : 4;
+    game.cam.pitch = 0.05;
+    game.cam.yaw = Math.PI;
+  }
+  // Debug / test hook (also used by the Playwright smoke test).
+  (window as unknown as { __sp: unknown }).__sp = { game, renderer: r };
   const fps = document.createElement('div');
   fps.className = 'fps';
   ui.appendChild(fps);

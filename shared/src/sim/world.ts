@@ -200,6 +200,17 @@ export class PhysicsWorld {
     return tick >= fall + tile.respawnTicks;
   }
 
+  /** A player stood on tile `i` at `tick`: start its drop if it is idle. Returns true when newly triggered. */
+  stepOnTile(i: number, tick: number): boolean {
+    const t = this.tiles[i];
+    if (!t || t.fallTick >= 0) return false;
+    const fall = this.tileFallTick(t);
+    const idle = fall < 0 || (t.respawnTicks >= 0 && tick >= fall + t.respawnTicks);
+    if (!idle) return false;
+    t.triggerTick = tick;
+    return true;
+  }
+
   /** Moves every obstacle / tile to its state at round tick `tick` and refreshes the query structures. */
   setTime(tick: number): void {
     const t = tick * DT;

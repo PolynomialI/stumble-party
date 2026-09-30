@@ -134,7 +134,7 @@ export class Environment {
     this.hemi.groundColor.copy(ground);
     this.sun.color.set(theme.sunColor);
     this.sunOffset.set(...theme.sunDir).normalize().multiplyScalar(60);
-    this.scene.fog = new THREE.Fog(theme.fog, 90, 420);
+    this.scene.fog = new THREE.Fog(theme.fog, 140, 560);
     toyUniforms.uRimColor.value.set(theme.skyHorizon).lerp(new THREE.Color(0xffffff), 0.5);
     if (this.profile.pbr) this.buildEnvMap(theme);
     else {
@@ -166,8 +166,8 @@ export class Environment {
   }
 
   private buildClouds(theme: Theme, killY: number) {
-    const tint = new THREE.Color(theme.cloudTint).lerp(new THREE.Color(theme.skyTop), 0.22);
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(0x1a2233), emissiveIntensity: 0.35 });
+    const tint = new THREE.Color(theme.cloudTint).lerp(new THREE.Color(theme.skyTop), 0.13);
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(theme.skyHorizon), emissiveIntensity: 0.28 });
     const variants = 3;
     const total = this.profile.clouds;
     const r = rng(1234);

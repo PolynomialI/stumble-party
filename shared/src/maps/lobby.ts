@@ -2,7 +2,7 @@ import { box, cyl, deco, wedge, ball, DEG } from './build';
 import { SUNNY } from './themes';
 import type { MapDef, Piece } from './types';
 
-const pads: Piece[] = [0, 120, 240].map((a) => {
+const pads: Piece[] = [60, 180, 300].map((a) => {
   const r = 7.6, rad = (a + 180) * DEG;
   const x = Math.sin(rad) * r, z = Math.cos(rad) * r;
   return cyl([x, 0.12, z], 2.6, 0.24, 'bounce', {
