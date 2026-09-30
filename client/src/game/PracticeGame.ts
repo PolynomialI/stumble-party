@@ -41,7 +41,13 @@ export class PracticeGame {
   private checkpoint = -1;
   private lastCount = -1;
 
-  constructor(private readonly r: GameRenderer, private readonly input: Input, readonly map: MapDef, look: Look, ui: HTMLElement) {
+  /** Title-screen mode: no input, slowly orbiting camera, the character idles and emotes. */
+  readonly attract: boolean;
+  private attractT = 0;
+
+  constructor(private readonly r: GameRenderer, private readonly input: Input, readonly map: MapDef, look: Look, ui: HTMLElement,
+    opts: { attract?: boolean } = {}) {
+    this.attract = opts.attract ?? false;
     this.pw = new PhysicsWorld(map);
     this.pw.setTime(0);
     this.view = new MapView(map, r.mats, r.profile);
@@ -52,7 +58,7 @@ export class PracticeGame {
     this.chars.setLook(0, look);
     r.scene.add(this.chars.group);
     this.hud = new Hud(ui);
-    this.phase = map.type === 'race' ? 'countdown' : 'free';
+    this.phase = map.type === 'race' && !this.attract ? 'countdown' : 'free';
     this.respawn(true);
   }
 
@@ -75,8 +81,8 @@ export class PracticeGame {
 
   private fixedStep() {
     this.prev.copyFrom(this.state);
-    this.input.sample(this.cam.yaw, this.cmd);
-    const cmd = this.phase === 'countdown' ? NO_INPUT : this.cmd;
+    if (!this.attract) this.input.sample(this.cam.yaw, this.cmd);
+    const cmd = this.phase === 'countdown' || this.attract ? NO_INPUT : this.cmd;
     stepCharacter(this.pw, this.state, cmd);
     this.tick++;
     this.pw.setTime(this.tick);
@@ -126,7 +132,14 @@ export class PracticeGame {
       this.hud.setTimer(this.map.timeLimit - (this.tick - this.startTick) * DT);
     }
 
-    const e = this.input.takeEmote();
+    let e = this.attract ? 0 : this.input.takeEmote();
+    if (this.attract) {
+      this.attractT += dt;
+      this.cam.yaw += dt * 0.12;
+      this.cam.pitch = 0.16;
+      this.cam.distance = 5.2;
+      if (this.attractT > 4.5) { this.attractT = 0; e = 1 + Math.floor(Math.random() * 4); }
+    }
     if (e) { this.emote = e; this.emoteT = 0; }
     this.emoteT += dt;
     if (this.emoteT > 2.6 || Math.hypot(s.vx, s.vz) > 1 || !s.grounded) this.emote = 0;
@@ -141,7 +154,7 @@ export class PracticeGame {
     this.chars.update(0, pose, dt);
     for (const x of this.extras) this.chars.update(x.slot, x.pose, dt);
     this.view.update(this.tick - 1 + a, dt, this.pw);
-    this.cam.update(dt, this.focus, this.input.takeLook(), this.input.zoomDelta, this.pw);
+    this.cam.update(dt, this.focus, this.attract ? [0, 0] : this.input.takeLook(), this.attract ? 0 : this.input.zoomDelta, this.pw);
     this.input.zoomDelta = 0;
     this.env.update(dt, this.focus);
   }

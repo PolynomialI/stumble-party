@@ -9,3 +9,5 @@ export * from './sim/character';
 export * from './customize';
 export * from './game/course';
 export * from './sim/bot';
+export * from './net/protocol';
+export * from './sim/interactions';
