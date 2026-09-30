@@ -1,0 +1,87 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #6ec6ff;
+  font-family: "Nunito", "Arial Rounded MT Bold", "Segoe UI", Roboto, system-ui, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  outline: none;
+}
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+#ui > * { pointer-events: auto; }
+.fps {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: #fff;
+  font: 700 12px/1 system-ui, sans-serif;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  pointer-events: none !important;
+}
+.fatal {
+  position: fixed;
+  inset: 20px;
+  background: #fff;
+  color: #b00020;
+  padding: 16px;
+  white-space: pre-wrap;
+  overflow: auto;
+  border-radius: 12px;
+}
+
+/* Touch controls */
+.touch-layer {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.touch-stick {
+  position: absolute;
+  width: 124px;
+  height: 124px;
+  margin: -62px 0 0 -62px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  border: 3px solid rgba(255, 255, 255, 0.45);
+  display: none;
+}
+.touch-stick.active { display: block; }
+.touch-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, #dce9ff 60%, #b5c9ee);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, -50%);
+}
+.touch-btn {
+  position: absolute;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  font: 900 28px/1 system-ui, sans-serif;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.18), inset 0 -6px 0 rgba(0, 0, 0, 0.12), 0 8px 18px rgba(0, 0, 0, 0.2);
+  touch-action: none;
+}
+.touch-btn.down { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.18); }
+.touch-jump { right: 28px; bottom: 34px; width: 96px; height: 96px; background: linear-gradient(#58d27b, #2fb257); }
+.touch-dive { right: 138px; bottom: 26px; width: 72px; height: 72px; background: linear-gradient(#ffb347, #ff8a1f); }
+.touch-emote { right: 40px; bottom: 146px; width: 56px; height: 56px; background: linear-gradient(#a58bff, #7c5cff); font-size: 24px; }
