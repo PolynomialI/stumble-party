@@ -19,12 +19,47 @@ function rapierWasmFile(): Plugin {
   };
 }
 
-export default defineConfig({
-  plugins: [rapierWasmFile()],
-  server: { port: 5173, host: true },
-  preview: { port: 4173, host: true },
-  build: {
-    target: 'es2022',
-    chunkSizeWarningLimit: 1500,
-  },
+/**
+ * `npm run build:html`: the whole client as one self-contained HTML file (script, styles and Rapier's
+ * inline wasm) that runs straight from disk, without a web server.
+ */
+function singleFile(): Plugin {
+  return {
+    name: 'single-file',
+    apply: 'build',
+    enforce: 'post',
+    generateBundle(_, bundle) {
+      const page = bundle['index.html'];
+      if (!page || page.type !== 'asset') this.error('index.html missing from the bundle');
+      let html = String(page.source);
+      for (const [name, file] of Object.entries(bundle)) {
+        const ref = new RegExp(`<(script|link)\\b[^>]*"/${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>(</script>)?`);
+        if (file.type === 'chunk') {
+          // "</script" inside the code would end the element early.
+          const code = file.code.replace(/<\/script/gi, '<\\/script');
+          html = html.replace(ref, () => `<script type="module">${code}</script>`);
+        } else if (name.endsWith('.css')) {
+          html = html.replace(ref, () => `<style>${String(file.source)}</style>`);
+        } else continue;
+        delete bundle[name];
+      }
+      if (/\/assets\//.test(html)) this.error('single-file: something was not inlined');
+      delete bundle['index.html'];
+      this.emitFile({ type: 'asset', fileName: 'stumble-party.html', source: html });
+    },
+  };
+}
+
+export default defineConfig(({ mode }) => {
+  const single = mode === 'single';
+  return {
+    plugins: [single ? singleFile() : rapierWasmFile()],
+    server: { port: 5173, host: true },
+    preview: { port: 4173, host: true },
+    build: {
+      target: 'es2022',
+      chunkSizeWarningLimit: single ? 6000 : 1500,
+      ...(single ? { outDir: '../play', emptyOutDir: true } : {}),
+    },
+  };
 });

@@ -66,6 +66,18 @@ that map (`tumbletop`, `bouncy`, `windmill`, `spincycle`, `tiletumble`, `laststa
 `server/dist/index.js` (start it with `node server/dist/index.js`; it listens on `$PORT`, default 2567).
 Set `VITE_SERVER_URL` when building the client to point it at a server elsewhere.
 
+### One-file version
+
+`npm run build:html` writes **`play/stumble-party.html`**: the whole game client in a single file that opens
+straight from disk with a double-click, no web server needed. Practice, Customize and Settings work on
+their own. Play and private rooms need a game server. By default the file looks for one on the same computer
+(start it with `npm run dev`). To point it at a deployed server instead, build it with that server's address:
+
+```sh
+VITE_SERVER_URL=https://your-server.onrender.com npm run build:html     # macOS / Linux
+$env:VITE_SERVER_URL="https://your-server.onrender.com"; npm run build:html   # Windows PowerShell
+```
+
 ## Testing
 
 | Command | What it checks |
