@@ -119,7 +119,9 @@ To deploy:
 4. Open the static site's address (shown on its page in the dashboard, for example
    `https://stumble-party.onrender.com`). That is the link to share with players.
 
-Every push to the repository's default branch redeploys both services.
+A push to the default branch redeploys a service only when its own code changed (`buildFilter` in
+`render.yaml`): the server for `server/` and `shared/`, the site for `client/` and `shared/`. Redeploying the
+server restarts it, which ends any match in progress.
 
 To deploy somewhere else: the server runs on any Node host that supports WebSockets
 (`npm ci && npm run build -w server`, then `node server/dist/index.js`). The client is plain static files
@@ -128,8 +130,9 @@ from `npm run build -w client`, built with `VITE_SERVER_URL=https://your-server`
 ### The free tier's cold start
 
 The server uses Render's free instance type. Render puts free web services to sleep after 15 minutes without
-traffic, and waking one takes about a minute. So the first player to arrive after a quiet spell waits up to
-a minute: the game shows "Waking up the game server…" with a timer and connects by itself once the server
+traffic, and waking one takes about a minute, sometimes two or more. So the first player to arrive after a
+quiet spell waits that long:
+the game shows "Waking up the game server…" with a timer (it keeps trying for five minutes) and connects by itself once the server
 is up. The static site never sleeps, so the title screen and practice mode always load instantly.
 
 Other free-tier limits worth knowing:

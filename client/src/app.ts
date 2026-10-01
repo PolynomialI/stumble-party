@@ -118,7 +118,7 @@ export class App {
     this.overlay.show('Connecting…', 'Cancel', cancel);
     try {
       await waitForServer((s) => {
-        this.overlay.show(`Waking up the game server… ${s}s\n(free hosting sleeps when idle; this can take up to a minute)`, 'Cancel', cancel);
+        this.overlay.show(`Waking up the game server… ${s}s\n(free hosting sleeps when idle; waking can take a minute or two)`, 'Cancel', cancel);
       }, ctl.signal);
       if (ctl.signal.aborted) return;
       this.overlay.show(how.kind === 'quick' ? 'Finding a match…' : 'Joining the room…', 'Cancel', cancel);

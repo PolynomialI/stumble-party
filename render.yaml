@@ -13,6 +13,14 @@ services:
     buildCommand: npm ci --include=dev && npm run build -w server
     startCommand: node server/dist/index.js
     healthCheckPath: /health
+    # Redeploying restarts the server and ends matches in progress, so only do it when server code changes.
+    buildFilter:
+      paths:
+        - server/**
+        - shared/**
+        - package.json
+        - package-lock.json
+        - .node-version
 
   # Browser client: built once, then served from Render's CDN (static sites never sleep).
   - type: web
@@ -20,6 +28,13 @@ services:
     runtime: static
     buildCommand: npm ci --include=dev && npm run build -w client
     staticPublishPath: client/dist
+    buildFilter:
+      paths:
+        - client/**
+        - shared/**
+        - package.json
+        - package-lock.json
+        - .node-version
     envVars:
       # The server's public https://....onrender.com address, baked into the client at build time.
       - key: VITE_SERVER_URL

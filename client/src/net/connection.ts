@@ -20,10 +20,10 @@ export function serverUrl(): string {
 }
 
 /**
- * Waits until /health answers. A hosted server may be asleep (free hosting tiers take up to a minute to
- * wake), so we report progress instead of failing on the first timeout. A local one is up or it isn't.
+ * Waits until /health answers. A hosted server may be asleep or mid-deploy (Render's free tier can take
+ * over two minutes to answer), so we report progress for up to five. A local one is up or it isn't.
  */
-export async function waitForServer(onWaiting: (seconds: number) => void, signal?: AbortSignal, limitMs = configured ? 120_000 : 6_000) {
+export async function waitForServer(onWaiting: (seconds: number) => void, signal?: AbortSignal, limitMs = configured ? 300_000 : 6_000) {
   const base = serverUrl();
   const t0 = performance.now();
   let notified = false;
