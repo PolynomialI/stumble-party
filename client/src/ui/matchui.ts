@@ -261,8 +261,10 @@ export class MatchUI {
         const rank = 1 + running.filter((p) => p.points > me.points).length;
         return `${me.it ? '👑 ' : ''}${me.points} pts · #${rank} · top ${v.qualify}`;
       }
-      case 'tag':
-        return me?.it ? 'You have a bomb!' : `${running.filter((p) => p.it).length} bombs`;
+      case 'tag': {
+        const bombs = running.filter((p) => p.it).length;
+        return me?.it ? 'You have a bomb!' : `${bombs} bomb${bombs === 1 ? '' : 's'}`;
+      }
       case 'final':
         return map.finish ? 'Get the crown!' : `${running.length} left`;
       default:
