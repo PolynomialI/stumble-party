@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { rng, type Theme } from '@sp/shared';
+import { rng, type MapDef, type Theme } from '@sp/shared';
 import type { QualityProfile } from './quality';
 import { toyUniforms } from './materials';
 
@@ -89,12 +89,12 @@ export class Environment {
   readonly sun: THREE.DirectionalLight;
   readonly hemi: THREE.HemisphereLight;
   private sky: THREE.Mesh;
-  private clouds: THREE.InstancedMesh[] = [];
   private envTarget: THREE.WebGLRenderTarget | null = null;
   private readonly sunOffset = new THREE.Vector3();
 
   constructor(private readonly scene: THREE.Scene, private readonly renderer: THREE.WebGLRenderer,
-    theme: Theme, private profile: QualityProfile, killY: number) {
+    map: MapDef, private profile: QualityProfile) {
+    const theme = map.theme;
     this.sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 16), skyMaterial(theme));
     this.sky.renderOrder = -10;
     this.sky.frustumCulled = false;
@@ -106,7 +106,7 @@ export class Environment {
     this.group.add(this.sun, this.sun.target);
     this.configureShadows();
 
-    this.buildClouds(theme, killY);
+    this.buildClouds(map);
     this.applyTheme(theme);
     scene.add(this.group);
   }
@@ -165,7 +165,23 @@ export class Environment {
     });
   }
 
-  private buildClouds(theme: Theme, killY: number) {
+  /**
+   * Clouds are laid out around the whole course, never across it: a sea of them below the lowest floor, and
+   * tall ones in a ring that keeps well clear of the track's sides and both of its ends. (A ring around the
+   * start line would cut straight through a long course and hide the platforms ahead.)
+   */
+  private buildClouds(map: MapDef) {
+    const theme = map.theme;
+    let z0 = Infinity, z1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const p of [...map.pieces, ...map.tiles.map((t) => t.piece)]) {
+      if (p.solid === false) continue;
+      z0 = Math.min(z0, p.pos[2]); z1 = Math.max(z1, p.pos[2]);
+      y0 = Math.min(y0, p.pos[1]); y1 = Math.max(y1, p.pos[1]);
+    }
+    if (z0 > z1) { z0 = z1 = 0; y0 = y1 = 0; }
+    const midZ = (z0 + z1) / 2, half = (z1 - z0) / 2;
+    // On maps with a sea, keep the cloud tops under its surface.
+    const floor = Math.min(map.killY, y0 - 12, map.sea ? map.sea.y - 10 : Infinity);
     const tint = new THREE.Color(theme.cloudTint).lerp(new THREE.Color(theme.skyTop), 0.13);
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: new THREE.Color(theme.skyHorizon), emissiveIntensity: 0.28 });
     const variants = 3;
@@ -183,15 +199,15 @@ export class Environment {
         const below = i % 2 === 0;
         const a = r() * Math.PI * 2;
         if (below) {
-          // Cloud sea under the course.
+          // Cloud sea under the course, along its whole length.
           const d = 20 + r() * 260;
-          p.set(Math.cos(a) * d, killY - 14 - r() * 18, Math.sin(a) * d);
+          p.set(Math.cos(a) * d, floor - 14 - r() * 18, midZ + Math.sin(a) * (d + half));
           const k = 9 + r() * 10;
           s.set(k * 1.4, k * 0.55, k);
         } else {
-          // Towering horizon clouds.
-          const d = 220 + r() * 220;
-          p.set(Math.cos(a) * d, -30 + r() * 70, Math.sin(a) * d);
+          // Towering horizon clouds: at least 230 m out to the sides and beyond each end.
+          const d = 230 + r() * 220;
+          p.set(Math.cos(a) * d, (y0 + y1) / 2 - 30 + r() * 70, midZ + Math.sin(a) * (d + half));
           const k = 14 + r() * 18;
           s.set(k * 1.6, k, k);
         }
@@ -199,7 +215,6 @@ export class Environment {
         mesh.setMatrixAt(i, m4.compose(p, q, s));
       }
       mesh.frustumCulled = false;
-      this.clouds.push(mesh);
       this.group.add(mesh);
     }
   }
@@ -209,7 +224,6 @@ export class Environment {
     this.sun.position.copy(focus).add(this.sunOffset);
     this.sun.target.position.copy(focus);
     this.sky.position.copy(focus);
-    for (const c of this.clouds) c.rotation.y += dt * 0.004;
   }
 
   dispose() {

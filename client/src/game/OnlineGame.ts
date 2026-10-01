@@ -205,7 +205,7 @@ export class OnlineGame {
     this.pw = new PhysicsWorld(map);
     this.view = new MapView(map, this.r.mats, this.r.profile);
     this.r.scene.add(this.view.group);
-    this.env = new Environment(this.r.scene, this.r.renderer, map.theme, this.r.profile, map.killY);
+    this.env = new Environment(this.r.scene, this.r.renderer, map, this.r.profile);
     this.chars.carry = map.keep ? 'crown' : 'bomb';
     this.tags.root.classList.toggle('crowns', !!map.keep);
     this.tracks.clear();

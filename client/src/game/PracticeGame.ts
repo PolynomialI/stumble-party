@@ -84,7 +84,7 @@ export class PracticeGame {
     this.pw.setTime(0);
     this.view = new MapView(map, r.mats, r.profile);
     r.scene.add(this.view.group);
-    this.env = new Environment(r.scene, r.renderer, map.theme, r.profile, map.killY);
+    this.env = new Environment(r.scene, r.renderer, map, r.profile);
     this.cam = new CameraRig(r.camera);
     this.chars = new CharacterRenderer(r.mats, r.profile);
     this.chars.setLook(0, look);
