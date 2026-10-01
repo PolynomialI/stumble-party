@@ -59,17 +59,32 @@ export interface JoinProfile {
 
 let client: Client | null = null;
 function colyseus(): Client {
-  return (client ??= new Client(serverUrl()));
+  // We use no cookies, so send none: a credentialed cross-origin request is the strictest kind a browser
+  // makes, and privacy extensions or filtering proxies that touch its CORS headers would break it.
+  return (client ??= new Client(serverUrl(), { fetchFn: (url, init) => fetch(url, { ...init, credentials: 'omit' }) }));
+}
+
+/** The server never answered: it is restarting or asleep, or the network dropped. Worth retrying. */
+export class Unreachable extends Error {}
+
+/** Server refusals carry a numeric code; anything else means the request got no answer at all. */
+async function reach(join: Promise<Room>): Promise<Room> {
+  try {
+    return await join;
+  } catch (e) {
+    if (typeof (e as { code?: unknown })?.code === 'number') throw e;
+    throw new Unreachable(`Could not reach the game server. Check your connection and try again.\n(${(e as Error)?.message ?? e})`);
+  }
 }
 
 export function quickPlay(profile: JoinProfile): Promise<Room> {
-  return colyseus().joinOrCreate(ROOM_NAME, { ...profile, mode: 'quick' });
+  return reach(colyseus().joinOrCreate(ROOM_NAME, { ...profile, mode: 'quick' }));
 }
 
 export function createPrivate(profile: JoinProfile, fillBots: boolean): Promise<Room> {
-  return colyseus().create(ROOM_NAME, { ...profile, mode: 'private', fillBots });
+  return reach(colyseus().create(ROOM_NAME, { ...profile, mode: 'private', fillBots }));
 }
 
 export function joinByCode(code: string, profile: JoinProfile): Promise<Room> {
-  return colyseus().joinById(code.trim().toUpperCase(), profile);
+  return reach(colyseus().joinById(code.trim().toUpperCase(), profile));
 }

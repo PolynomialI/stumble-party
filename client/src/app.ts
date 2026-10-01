@@ -3,7 +3,7 @@ import { getMap } from '@sp/shared';
 import { OnlineGame } from './game/OnlineGame';
 import { PracticeGame } from './game/PracticeGame';
 import type { Input } from './input/Input';
-import { createPrivate, joinByCode, quickPlay, waitForServer } from './net/connection';
+import { Unreachable, createPrivate, joinByCode, quickPlay, waitForServer } from './net/connection';
 import { loadProfile, saveProfile, type Profile } from './profile';
 import type { GameRenderer } from './render/Renderer';
 import type { Settings } from './settings';
@@ -106,7 +106,8 @@ export class App {
     if (how.kind === 'create') return createPrivate(profile, how.fillBots);
     try {
       return await joinByCode(how.code, profile);
-    } catch {
+    } catch (e) {
+      if (e instanceof Unreachable) throw e;
       throw new Error(`No room with code ${how.code}. Check the code, or the match may have started already.`);
     }
   }
@@ -117,12 +118,22 @@ export class App {
     const cancel = () => this.showMenu();
     this.overlay.show('Connecting…', 'Cancel', cancel);
     try {
-      await waitForServer((s) => {
+      const waking = (s: number) => {
         this.overlay.show(`Waking up the game server… ${s}s\n(free hosting sleeps when idle; waking can take a minute or two)`, 'Cancel', cancel);
-      }, ctl.signal);
-      if (ctl.signal.aborted) return;
-      this.overlay.show(how.kind === 'quick' ? 'Finding a match…' : 'Joining the room…', 'Cancel', cancel);
-      const room = await this.connect(how);
+      };
+      let room: Room;
+      for (let tries = 1; ; tries++) {
+        await waitForServer(waking, ctl.signal);
+        if (ctl.signal.aborted) return;
+        this.overlay.show(how.kind === 'quick' ? 'Finding a match…' : 'Joining the room…', 'Cancel', cancel);
+        try {
+          room = await this.connect(how);
+          break;
+        } catch (e) {
+          // Free hosting can restart the server between our check and the request: wait for it and try again.
+          if (!(e instanceof Unreachable) || tries === 3) throw e;
+        }
+      }
       if (ctl.signal.aborted) {
         room.leave().catch(() => {});
         return;
