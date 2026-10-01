@@ -14,7 +14,7 @@ export class NameTags {
     parent.appendChild(this.root);
   }
 
-  setName(slot: number, name: string, self = false) {
+  setName(slot: number, name: string, self = false, hot = false) {
     let el = this.tags.get(slot);
     if (!el) {
       el = document.createElement('div');
@@ -25,6 +25,7 @@ export class NameTags {
     }
     if (el.textContent !== name) el.textContent = name;
     el.classList.toggle('self', self);
+    el.classList.toggle('hot', hot);
   }
 
   beginFrame() {

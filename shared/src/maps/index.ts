@@ -1,23 +1,16 @@
-import { LOBBY } from './lobby';
-import { TUMBLETOP } from './tumbletop';
-import { SPIN_CYCLE } from './spincycle';
-import { LAST_STAND } from './laststand';
-import { BOUNCY } from './bouncy';
-import { WINDMILL } from './windmill';
-import { TILE_TUMBLE } from './tiletumble';
 import { CHECKER } from './checker';
+import { CROWNRUSH, HILLTOP, HOTPOTATO, LOGJAM, MAGMA } from './arenas';
+import { LAST_STAND } from './laststand';
+import { LOBBY } from './lobby';
+import { RACES } from './races';
+import { SPIN_CYCLE } from './spincycle';
+import { TILE_TUMBLE } from './tiletumble';
 import type { MapDef } from './types';
 
-export const MAPS: Record<string, MapDef> = {
-  [LOBBY.id]: LOBBY,
-  [TUMBLETOP.id]: TUMBLETOP,
-  [SPIN_CYCLE.id]: SPIN_CYCLE,
-  [LAST_STAND.id]: LAST_STAND,
-  [BOUNCY.id]: BOUNCY,
-  [WINDMILL.id]: WINDMILL,
-  [TILE_TUMBLE.id]: TILE_TUMBLE,
-  [CHECKER.id]: CHECKER,
-};
+export const MAPS: Record<string, MapDef> = Object.fromEntries(
+  [LOBBY, ...RACES, SPIN_CYCLE, TILE_TUMBLE, LOGJAM, MAGMA, HILLTOP, HOTPOTATO, LAST_STAND, CHECKER, CROWNRUSH]
+    .map((m) => [m.id, m]),
+);
 
 export function getMap(id: string): MapDef {
   const m = MAPS[id];

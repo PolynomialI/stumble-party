@@ -5,8 +5,9 @@ import {
 } from '../math';
 import type { BotNode, MapDef, Piece } from '../maps/types';
 import { BTN_DIVE, BTN_JUMP, BTN_JUMP_PRESS, CHAR, MODE_NORMAL, type CharState, type InputCmd } from './character';
+import { hillAt } from '../game/course';
 import { obstaclePose } from './obstacles';
-import { QUERY_STATIC, type PhysicsWorld } from './world';
+import { QUERY_SOLID, type PhysicsWorld } from './world';
 
 /** A hazard part approximated as a capsule (segment + radius) in its obstacle's pivot frame. */
 interface HazardSeg {
@@ -127,6 +128,8 @@ export class BotBrain {
   private wander: Vec3 | null = null;
   private wanderT = 0;
   private laneT = 0;
+  /** Set by the match rules (tag rounds): someone to run at, or to run away from. */
+  goal: { x: number; z: number; flee: boolean } | null = null;
 
   constructor(seed: number, readonly skill: number) {
     this.rand = rng(seed);
@@ -194,13 +197,13 @@ export class BotBrain {
 
   private groundAhead(pw: PhysicsWorld, x: number, feetY: number, z: number): boolean {
     _ray.origin = { x, y: feetY + 0.6, z };
-    return !!pw.world.castRay(_ray, 4.5, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, QUERY_STATIC);
+    return !!pw.world.castRay(_ray, 4.5, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, QUERY_SOLID);
   }
 
   /** Ground at (x, z) that will still be there a few seconds from now (not a tile about to drop). */
   private safeGround(pw: PhysicsWorld, x: number, feetY: number, z: number): boolean {
     _ray.origin = { x, y: feetY + 0.6, z };
-    const hit = pw.world.castRay(_ray, 4.5, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, QUERY_STATIC);
+    const hit = pw.world.castRay(_ray, 4.5, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, QUERY_SOLID);
     if (!hit) return false;
     const tile = pw.info.get(hit.collider.handle)?.tile ?? -1;
     if (tile < 0) return true;
@@ -222,7 +225,9 @@ export class BotBrain {
       this.ignoreHazards = this.rand() < (1 - this.skill) * 0.3;
     }
     this.laneT -= DT;
-    if (this.laneT <= 0) {
+    // No lane changes while the path is split into separate lanes (beams, stepping stones, logs).
+    const split = !!pw.map.bot.path?.[Math.min(this.wp, pw.map.bot.path.length - 1)]?.lanes;
+    if (this.laneT <= 0 && !split) {
       this.laneT = 2 + this.rand() * 3;
       this.lane = Math.max(-1, Math.min(1, this.lane + (this.rand() - 0.5) * 0.8));
     }
@@ -324,6 +329,26 @@ export class BotBrain {
   private wanderTarget(pw: PhysicsWorld, c: CharState): [number, number] {
     this.wanderT -= DT;
     const arena = pw.map.bot.arena;
+    if (this.goal) {
+      if (!this.goal.flee) return [this.goal.x, this.goal.z];
+      // Run directly away, but turn along the edge rather than off it.
+      let x = c.px * 2 - this.goal.x, z = c.pz * 2 - this.goal.z;
+      if (arena) {
+        const d = Math.hypot(x - arena.center[0], z - arena.center[2]);
+        const max = arena.radius * 0.85;
+        if (d > max) {
+          x = arena.center[0] + ((x - arena.center[0]) / d) * max + (c.pz - this.goal.z) * 0.6;
+          z = arena.center[2] + ((z - arena.center[2]) / d) * max - (c.px - this.goal.x) * 0.6;
+        }
+      }
+      return [x, z];
+    }
+    // Zone rounds: stand in the scoring zone, each bot on its own patch of it.
+    const hill = hillAt(pw.map, pw.tick * DT);
+    if (hill) {
+      const r = pw.map.hill!.r * 0.6;
+      return [hill[0] + this.lane * r, hill[2] + Math.sin(this.lane * 9) * r];
+    }
     const feetY = c.py - CHAR.centerHeight;
     const reached = this.wander && (c.px - this.wander[0]) ** 2 + (c.pz - this.wander[2]) ** 2 < 1;
     // Re-plan if the destination, or the ground under our own feet, is about to drop.

@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { rng } from '../src/math';
 import {
-  finalSize, finalTimeUpWinner, planMatch, roundOver, roundTarget, survivorsWithTiebreak, type MapPool,
+  finalSize, finalTimeUpWinner, planMatch, roundOver, roundTarget, survivorsWithTiebreak, topScorers, type MapPool,
 } from '../src/game/rules';
 
-const pool: MapPool = { race: ['r1', 'r2', 'r3'], survival: ['s1', 's2'], final: ['f1', 'f2'] };
+const pool: MapPool = {
+  race: ['r1', 'r2', 'r3', 'r4'], survival: ['s1', 's2'], points: ['p1'], tag: ['t1'], final: ['f1', 'f2'],
+};
 
 describe('match planning', () => {
-  it('plays 4 rounds with a big lobby and 3 with a small one, always ending in a final', () => {
-    expect(planMatch(32, pool, rng(1)).length).toBe(4);
-    expect(planMatch(12, pool, rng(1)).length).toBe(4);
-    expect(planMatch(11, pool, rng(1)).length).toBe(3);
-    expect(planMatch(10, pool, rng(1)).length).toBe(3);
+  it('plays more rounds the bigger the lobby, always opening with a race and ending in a final', () => {
+    expect(planMatch(32, pool, rng(1)).length).toBe(6);
+    expect(planMatch(16, pool, rng(1)).length).toBe(5);
+    expect(planMatch(10, pool, rng(1)).length).toBe(4);
+    expect(planMatch(5, pool, rng(1)).length).toBe(3);
     for (const n of [4, 10, 16, 32]) {
       const plan = planMatch(n, pool, rng(n));
       expect(plan[plan.length - 1].type).toBe('final');
@@ -37,9 +39,41 @@ describe('match planning', () => {
     expect(finalSize(10)).toBe(2);
   });
 
-  it('uses each map at most once while the pools last', () => {
-    const plan = planMatch(32, pool, rng(7));
-    expect(new Set(plan.map((r) => r.mapId)).size).toBe(plan.length);
+  it('plays the number of rounds asked for, as far as the lobby allows', () => {
+    expect(planMatch(32, pool, rng(1), 8).length).toBe(8);
+    expect(planMatch(32, pool, rng(1), 3).length).toBe(3);
+    expect(planMatch(32, pool, rng(1), 99).length).toBe(8);
+    // 5 players, final of 2: at most three knockout rounds fit before it.
+    expect(planMatch(5, pool, rng(1), 8).length).toBe(4);
+    for (let n = 4; n <= 32; n++) {
+      for (let rounds = 2; rounds <= 8; rounds++) {
+        const plan = planMatch(n, pool, rng(n * 10 + rounds), rounds);
+        let prev = n;
+        for (const r of plan.slice(0, -1)) {
+          expect(r.qualify, `n=${n} rounds=${rounds}`).toBeLessThan(prev);
+          prev = r.qualify;
+        }
+        expect(prev).toBe(finalSize(n));
+      }
+    }
+  });
+
+  it('never plays the same kind of round twice in a row after the opener, and uses every kind', () => {
+    const seen = new Set<string>();
+    for (let seed = 1; seed <= 40; seed++) {
+      const plan = planMatch(32, pool, rng(seed), 8);
+      plan.forEach((r, i) => {
+        seen.add(r.type);
+        if (i > 1) expect(r.type).not.toBe(plan[i - 1].type);
+      });
+    }
+    expect([...seen].sort()).toEqual(['final', 'points', 'race', 'survival', 'tag']);
+  });
+
+  it('ranks points rounds by score', () => {
+    const scores = [{ id: 'a', score: 3 }, { id: 'b', score: 9 }, { id: 'c', score: 9 }, { id: 'd', score: 0 }];
+    expect(topScorers(scores, 2)).toEqual(['b', 'c']);
+    expect(topScorers(scores, 3)).toEqual(['b', 'c', 'a']);
   });
 
   it('handles tiny lobbies', () => {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  CHAR, CharState, DT, FX_BOUNCE, FX_DIVE, FX_HIT, FX_JUMP, FX_LAND, NO_INPUT, PhysicsWorld, inZone, lerpAngle,
+  CHAR, CharState, DT, FX_BOUNCE, FX_DIVE, FX_HIT, FX_JUMP, FX_LAND, NO_INPUT, PhysicsWorld, inZone, killYAt, lerpAngle,
   reachCheckpoint, resolveObstacleHits, respawnPoint, spawnPoints, stepCharacter, wrapAngle, type InputCmd, type Look,
   type MapDef,
 } from '@sp/shared';
@@ -142,7 +142,7 @@ export class PracticeGame {
 
     const s = this.state;
     const feetY = s.py - CHAR.centerHeight;
-    if (s.py < this.map.killY) {
+    if (s.py < killYAt(this.map, this.tick * DT)) {
       this.respawn();
       return;
     }

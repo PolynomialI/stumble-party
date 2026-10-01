@@ -1,6 +1,6 @@
 import type { Vec3 } from '../math';
 
-export type MapType = 'lobby' | 'race' | 'survival' | 'final';
+export type MapType = 'lobby' | 'race' | 'survival' | 'points' | 'tag' | 'final';
 export type Surface = 'normal' | 'bounce' | 'conveyor' | 'ice' | 'bumper';
 export type ShapeKind = 'box' | 'cyl' | 'ball' | 'wedge';
 export type Axis = 'x' | 'y' | 'z';
@@ -9,7 +9,8 @@ export type Axis = 'x' | 'y' | 'z';
 export type MatKey =
   | 'floor' | 'floorAlt' | 'path' | 'wall' | 'trim' | 'accent' | 'accentAlt'
   | 'hazard' | 'bounce' | 'conveyor' | 'finish' | 'ice' | 'grass' | 'rock'
-  | 'metal' | 'bumper' | 'tile' | 'tileAlt' | 'white' | 'dark';
+  | 'metal' | 'bumper' | 'tile' | 'tileAlt' | 'white' | 'dark'
+  | 'wood' | 'leaf' | 'lava' | 'water' | 'snow' | 'gold';
 
 /** Surface detail painted by the client on top of the material colour. */
 export type Tex = 'none' | 'grid' | 'stripes' | 'dots' | 'checker' | 'chevron' | 'planks';
@@ -124,4 +125,10 @@ export interface MapDef {
   finish?: Zone;
   /** Race: waypoints from start to finish. Survival/final: arena centre + radius bots wander within. */
   bot: { path?: BotNode[]; arena?: { center: Vec3; radius: number } };
+  /** Rising lava: the kill height climbs from `killY` once `delay` seconds have passed, up to `yMax`. */
+  lava?: { delay: number; speed: number; yMax: number };
+  /** A sea below the course (water, or lava that rises with `lava`): its height and what it is made of. */
+  sea?: { y: number; mat: 'water' | 'lava' };
+  /** Points rounds: a scoring zone of radius `r` that moves to the next spot every `hold` seconds. */
+  hill?: { r: number; hold: number; spots: Vec3[] };
 }

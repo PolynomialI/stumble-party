@@ -8,3 +8,4 @@ playwright-report/
 coverage/
 *.tsbuildinfo
 play/
+tools/_*

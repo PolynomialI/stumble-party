@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
-  DT, newPose, obstaclePose, type MapDef, type MatKey, type Piece, type PhysicsWorld, type Tex,
+  DT, hillAt, killYAt, newPose, obstaclePose, type MapDef, type MatKey, type Piece, type PhysicsWorld, type Tex,
 } from '@sp/shared';
 import { normalizeAttributes, pieceGeometry } from './geometry';
 import type { MaterialLib, ToyOptions } from './materials';
@@ -10,7 +10,7 @@ import { TEX_SCALE } from './textures';
 import { Decor } from './decor';
 
 const DEFAULT_TEX: Partial<Record<MatKey, Tex>> = {
-  floor: 'grid', floorAlt: 'grid', hazard: 'stripes', conveyor: 'chevron', finish: 'checker',
+  floor: 'grid', floorAlt: 'grid', hazard: 'stripes', conveyor: 'chevron', finish: 'checker', wood: 'planks',
 };
 
 const MAT_LOOK: Partial<Record<MatKey, Partial<ToyOptions>>> = {
@@ -19,6 +19,11 @@ const MAT_LOOK: Partial<Record<MatKey, Partial<ToyOptions>>> = {
   rock: { roughness: 0.75 },
   bounce: { roughness: 0.25 },
   bumper: { roughness: 0.2 },
+  wood: { roughness: 0.6 },
+  leaf: { roughness: 0.65 },
+  snow: { roughness: 0.55 },
+  gold: { roughness: 0.14, emissive: 0x7a4a00, emissiveIntensity: 0.35 },
+  lava: { roughness: 0.5, emissive: 0xff4a10, emissiveIntensity: 0.9 },
 };
 
 const FLOOR_TEX = new Set<Tex>(['grid', 'planks']);
@@ -60,6 +65,8 @@ export class MapView {
   private readonly pose = newPose();
   private readonly ownedMaterials: THREE.Material[] = [];
   private readonly decor: Decor;
+  private sea: THREE.Mesh | null = null;
+  private hill: THREE.Group | null = null;
 
   constructor(readonly map: MapDef, private readonly mats: MaterialLib, private readonly profile: QualityProfile) {
     this.buildStatics();
@@ -67,6 +74,50 @@ export class MapView {
     this.buildTiles();
     this.decor = new Decor(map, mats, profile);
     this.group.add(this.decor.group);
+    this.buildSea();
+    this.buildHill();
+  }
+
+  /** Water or lava under the course: one big sheet (lava rises with the map's kill height). */
+  private buildSea() {
+    const sea = this.map.sea;
+    if (!sea) return;
+    const lava = sea.mat === 'lava';
+    const mat = new THREE.MeshLambertMaterial({
+      color: this.map.theme.palette[sea.mat],
+      emissive: lava ? 0xff3a00 : 0x0a3a66,
+      emissiveIntensity: lava ? 0.85 : 0.25,
+      transparent: !lava,
+      opacity: lava ? 1 : 0.86,
+    });
+    this.ownedMaterials.push(mat);
+    const zs = this.map.pieces.map((p) => p.pos[2]);
+    const mid = zs.length ? (Math.min(...zs) + Math.max(...zs)) / 2 : 0;
+    const geo = new THREE.PlaneGeometry(700, 700 + (zs.length ? Math.max(...zs) - Math.min(...zs) : 0), 1, 1);
+    geo.rotateX(-Math.PI / 2);
+    this.sea = new THREE.Mesh(geo, mat);
+    this.sea.position.set(0, sea.y, mid);
+    this.group.add(this.sea);
+  }
+
+  /** The scoring zone of a points round: a glowing ring and a soft column of light. */
+  private buildHill() {
+    const hill = this.map.hill;
+    if (!hill) return;
+    const g = new THREE.Group();
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffe14d });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(hill.r, 0.16, 8, 48), ringMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.12;
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0xffe14d, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false,
+    });
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(hill.r, hill.r, 7, 40, 1, true), beamMat);
+    beam.position.y = 3.5;
+    this.ownedMaterials.push(ringMat, beamMat);
+    g.add(ring, beam);
+    this.hill = g;
+    this.group.add(g);
   }
 
   private material(p: Piece): THREE.Material {
@@ -196,6 +247,17 @@ export class MapView {
     }
     for (const b of this.belts) b.tex.offset.y -= b.speed * dt;
     this.decor.update(dt);
+    if (this.sea) {
+      this.sea.position.y = (this.map.lava ? killYAt(this.map, t) + 0.5 : this.map.sea!.y) + Math.sin(t * 1.3) * 0.12;
+    }
+    if (this.hill) {
+      const c = hillAt(this.map, t)!;
+      this.hill.position.set(c[0], c[1], c[2]);
+      const left = this.map.hill!.hold - (Math.max(0, t) % this.map.hill!.hold);
+      // Blink for the last two seconds before the zone moves.
+      this.hill.visible = left > 2 || Math.floor(t * 6) % 2 === 0;
+      this.hill.children[0].scale.setScalar(1 + Math.sin(t * 4) * 0.03);
+    }
     if (pw) this.updateTiles(tick, pw);
   }
 

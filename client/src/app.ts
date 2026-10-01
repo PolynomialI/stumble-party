@@ -119,7 +119,7 @@ export class App {
     this.overlay.show('Connecting…', 'Cancel', cancel);
     try {
       const waking = (s: number) => {
-        this.overlay.show(`Waking up the game server… ${s}s\n(free hosting sleeps when idle; waking can take a minute or two)`, 'Cancel', cancel);
+        this.overlay.show(`Waking up the server… ${s}s`, 'Cancel', cancel);
       };
       let room: Room;
       for (let tries = 1; ; tries++) {

@@ -41,7 +41,7 @@ export class Menu {
         </div>
         <div class="private-panel hidden">
           <button class="btn btn-alt" data-act="create">Create a room</button>
-          <label class="check"><input type="checkbox" class="bots-check" checked /> Fill empty spots with bots</label>
+          <label class="check"><input type="checkbox" class="bots-check" checked /> Bots</label>
           <div class="join-row">
             <input class="code-input" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false" aria-label="Room code" />
             <button class="btn btn-alt" data-act="join">Join</button>
@@ -51,7 +51,6 @@ export class Menu {
           <button class="btn btn-pink" data-act="customize">Customize</button>
           <button class="btn btn-light" data-act="settings">${GEAR_SVG}Settings</button>
         </div>
-        <p class="menu-hint">WASD / arrows move · Space jump · Shift dive · 1–4 emotes</p>
       </div>`;
     this.nameInput = this.root.querySelector('.name-input')!;
     this.privatePanel = this.root.querySelector('.private-panel')!;

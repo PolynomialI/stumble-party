@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { DT } from '../src/constants';
 import { inZone, reachCheckpoint, respawnPoint } from '../src/game/course';
-import { getMap, spawnPoints } from '../src/maps/index';
+import { MAPS, getMap, spawnPoints } from '../src/maps/index';
 import { BotBrain } from '../src/sim/bot';
 import { CHAR, CharState, resolveObstacleHits, stepCharacter, type InputCmd } from '../src/sim/character';
 import { PhysicsWorld, initPhysics } from '../src/sim/world';
@@ -48,7 +48,7 @@ export function soloRace(mapId: string, seed: number, skill: number) {
 }
 
 describe('bots', () => {
-  for (const mapId of ['tumbletop', 'bouncy', 'windmill']) {
+  for (const mapId of Object.values(MAPS).filter((m) => m.type === 'race').map((m) => m.id)) {
     it(`finish ${mapId} within the time limit`, () => {
       const results = [1, 2, 3, 4, 5, 6].map((seed) => soloRace(mapId, seed, 0.85));
       const finished = results.filter((r) => r.time !== null);

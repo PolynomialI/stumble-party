@@ -61,6 +61,8 @@ interface SlotInfo {
   sessionId: string;
   name: string;
   lookKey: string;
+  /** Carrying a bomb (tag rounds). */
+  it: boolean;
 }
 
 const _pose = newPose();
@@ -171,8 +173,8 @@ export class OnlineGame {
       const info = this.slots.get(slot);
       if (!info || info.lookKey !== key || info.sessionId !== id) this.chars.setLook(slot, look);
       const name = String(p.name ?? '');
-      this.slots.set(slot, { sessionId: id, name, lookKey: key });
-      this.tags.setName(slot, name, id === this.room.sessionId);
+      this.slots.set(slot, { sessionId: id, name, lookKey: key, it: !!p.it });
+      this.tags.setName(slot, name, id === this.room.sessionId, !!p.it);
       if (id === this.room.sessionId) this.mySlot = slot;
     });
     for (const slot of [...this.slots.keys()]) {
@@ -312,6 +314,7 @@ export class OnlineGame {
       pose.mode = s.mode; pose.grounded = s.grounded;
       pose.emote = this.ownEmote; pose.emoteT = this.ownEmoteT;
       pose.groundY = this.renderOwn.y;
+      pose.it = this.slots.get(this.mySlot)?.it;
       this.chars.update(this.mySlot, pose, dt);
       if (this.ownFx) playFx(this.ownFx, this.effects, this.renderOwn.x, this.renderOwn.y, this.renderOwn.z, 1, this.cam);
       this.ownSeenAt = performance.now();
@@ -339,6 +342,7 @@ export class OnlineGame {
       pose.mode = tr.mode; pose.grounded = tr.grounded;
       pose.emote = tr.emote; pose.emoteT = (performance.now() - tr.emoteStart) / 1000;
       pose.groundY = tr.pos.y;
+      pose.it = this.slots.get(slot)?.it;
       this.chars.update(slot, pose, dt);
       this.tags.place(slot, tr.pos.x, tr.pos.y + 2.05, tr.pos.z, this.r.camera);
     }

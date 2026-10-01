@@ -1,6 +1,6 @@
 import { Room, matchMaker, type Client } from '@colyseus/core';
 import {
-  MAX_PLAYERS, MSG_INPUT, MSG_SNAPSHOT, MSG_TILES, EMOTE_COUNT, TICK_RATE, decodeInput, encodePlayers,
+  MAX_PLAYERS, MAX_ROUNDS, MSG_INPUT, MSG_SNAPSHOT, MSG_TILES, EMOTE_COUNT, TICK_RATE, decodeInput, encodePlayers,
   encodeSnapshot, encodeTiles, getMap, randomIdentity, sanitizeLook, sanitizeName, type MapInfo,
 } from '@sp/shared';
 import { Match } from './Match';
@@ -75,6 +75,13 @@ export class GameRoom extends Room<{ state: GameState }> {
     this.onMessage('bots', (client, on: unknown) => {
       if (client.sessionId === this.state.host && this.state.isPrivate && this.state.phase === 'lobby' && typeof on === 'boolean') {
         this.state.fillBots = on;
+      }
+    });
+
+    this.onMessage('rounds', (client, n: unknown) => {
+      const ok = n === 0 || (typeof n === 'number' && Number.isInteger(n) && n >= 2 && n <= MAX_ROUNDS);
+      if (client.sessionId === this.state.host && this.state.isPrivate && this.state.phase === 'lobby' && ok) {
+        this.state.roundsWanted = n as number;
       }
     });
 

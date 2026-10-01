@@ -1,6 +1,6 @@
 import {
-  BTN_DIVE, BTN_JUMP, BTN_JUMP_PRESS, BotBrain, CHAR, CharState, MODE_DIVE, NO_INPUT, PhysicsWorld, diveTackle,
-  inZone, pushPlayers, reachCheckpoint, resolveObstacleHits, respawnPoint, spawnPoints, stepCharacter,
+  BTN_DIVE, BTN_JUMP, BTN_JUMP_PRESS, BotBrain, CHAR, CharState, DT, MODE_DIVE, NO_INPUT, PhysicsWorld, diveTackle,
+  inZone, killYAt, pushPlayers, reachCheckpoint, resolveObstacleHits, respawnPoint, spawnPoints, stepCharacter,
   type InputCmd, type InputPacket, type MapDef, type RemoteEntry,
 } from '@sp/shared';
 
@@ -36,6 +36,8 @@ export interface SimEvents {
   finish?(p: SimPlayer): void;
   /** Fell below the map. Return true if the rules handled it (elimination); otherwise the player respawns. */
   fell?(p: SimPlayer): boolean;
+  /** Two players bumped into each other, or one dive-tackled the other. */
+  touch?(a: SimPlayer, b: SimPlayer): void;
 }
 
 /**
@@ -199,7 +201,9 @@ export class MatchSim {
 
     // Player vs player: shoves, then lag-compensated dive tackles.
     for (let i = 0; i < active.length; i++) {
-      for (let j = i + 1; j < active.length; j++) pushPlayers(active[i].state, active[j].state);
+      for (let j = i + 1; j < active.length; j++) {
+        if (pushPlayers(active[i].state, active[j].state)) this.events.touch?.(active[i], active[j]);
+      }
     }
     for (const d of active) {
       if (d.state.mode !== MODE_DIVE || d.tackled) continue;
@@ -209,6 +213,7 @@ export class MatchSim {
         const [x, y, z] = view === t ? [o.state.px, o.state.py, o.state.pz] : this.posAt(o, view);
         if (diveTackle(d.state, o.state, x, y, z)) {
           d.tackled = true;
+          this.events.touch?.(d, o);
           break;
         }
       }
@@ -219,7 +224,7 @@ export class MatchSim {
       if (!frozen && s.grounded && s.groundTile >= 0 && this.pw.stepOnTile(s.groundTile, wt)) {
         this.tileEvents.push({ tile: s.groundTile, tick: wt });
       }
-      if (s.py < this.map.killY) {
+      if (s.py < killYAt(this.map, wt * DT)) {
         if (!this.events.fell?.(p)) this.respawn(p);
         continue;
       }

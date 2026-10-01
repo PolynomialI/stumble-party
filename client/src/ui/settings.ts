@@ -18,12 +18,12 @@ export class SettingsPanel {
             <button data-q="low">Low</button><button data-q="medium">Medium</button><button data-q="high">High</button>
           </div>
         </div>
-        <p class="set-note quality-note">Low is smoothest on Chromebooks. Resolution also adapts automatically to keep play smooth.</p>
         <label class="set-row"><span>Camera speed</span><input type="range" min="0.2" max="3" step="0.1" data-k="sensitivity" /></label>
         <label class="set-row"><span>Invert camera Y</span><input type="checkbox" data-k="invertY" /></label>
         <label class="set-row"><span>Sound effects</span><input type="range" min="0" max="1" step="0.05" data-k="sfx" /></label>
         <label class="set-row"><span>Music</span><input type="range" min="0" max="1" step="0.05" data-k="music" /></label>
         <label class="set-row"><span>Show FPS</span><input type="checkbox" data-k="showFps" /></label>
+        <p class="set-note">WASD move · Space jump · Shift dive · 1–4 emotes</p>
         <button class="btn btn-play small" data-act="close">Done</button>
       </div>`;
     this.qualityRow = this.root.querySelector('.quality-row')!;
@@ -60,7 +60,6 @@ export class SettingsPanel {
 
   show(v: boolean, allowQuality = true) {
     this.qualityRow.style.display = allowQuality ? '' : 'none';
-    (this.root.querySelector('.quality-note') as HTMLElement).style.display = allowQuality ? '' : 'none';
     this.sync();
     this.root.classList.toggle('hidden', !v);
   }

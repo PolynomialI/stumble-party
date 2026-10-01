@@ -1,6 +1,7 @@
 import {
-  BotBrain, MAPS, MAX_PLAYERS, MIN_MATCH_PLAYERS, TICK_RATE, finalTimeUpWinner, getMap, mapPool, planMatch,
-  randomIdentity, rng, roundOver, roundTarget, survivorsWithTiebreak, type Faller, type RoundPlan,
+  BotBrain, CHAR, DT, MAPS, MAX_PLAYERS, MIN_MATCH_PLAYERS, TICK_RATE, finalTimeUpWinner, getMap, mapPool, onHill,
+  planMatch, randomIdentity, rng, roundOver, roundTarget, survivorsWithTiebreak, topScorers, type Faller,
+  type RoundPlan,
 } from '@sp/shared';
 import type { MatchSim, SimPlayer } from './MatchSim';
 import { PlayerState, ST_ELIMINATED, ST_LOBBY, ST_PLAYING, ST_QUALIFIED, type GameState } from './schema';
@@ -12,6 +13,9 @@ export const INTRO = 4 * SECONDS;
 export const COUNTDOWN = 3 * SECONDS;
 export const RESULTS = 5 * SECONDS;
 export const PODIUM = 9 * SECONDS;
+/** Tag: a fresh carrier cannot pass the bomb on for this long, nor straight back to whoever gave it for longer. */
+const TAG_HOLD = Math.round(0.5 * SECONDS);
+const TAG_NO_RETURN = Math.round(1.5 * SECONDS);
 /** Top of the warm-up island tower. */
 const PODIUM_SPOT: [number, number, number] = [0, 4, 0];
 
@@ -42,6 +46,10 @@ export class Match {
   private target = 0;
   private goTick = 0;
   private botSeq = 0;
+  /** Zone rounds: ticks each player has spent in the zone. */
+  private readonly zoneTicks = new Map<string, number>();
+  /** Tag rounds: when each carrier got the bomb, and from whom. */
+  private readonly bombs = new Map<string, { since: number; from: string }>();
   private readonly rand: () => number;
   readonly pool = mapPool(Object.values(MAPS));
 
@@ -51,6 +59,7 @@ export class Match {
     sim.events = {
       finish: (p) => this.onFinish(p),
       fell: (p) => this.onFell(p),
+      touch: (a, b) => this.onTouch(a, b),
     };
   }
 
@@ -131,7 +140,7 @@ export class Match {
       this.participants.add(id);
       p.score = 0;
     });
-    this.plan = planMatch(this.participants.size, this.pool, this.rand);
+    this.plan = planMatch(this.participants.size, this.pool, this.rand, this.state.roundsWanted);
     this.state.rounds = this.plan.length;
     this.roundIndex = -1;
     this.nextRound();
@@ -194,8 +203,15 @@ export class Match {
     }
     for (const sp of this.sim.players.values()) sp.active = false;
     this.sim.spawnAll(order);
+    this.zoneTicks.clear();
+    this.bombs.clear();
+    // Tag: as many bombs as players who must go out. Whoever holds one when the clock stops is eliminated.
+    const carriers = new Set(r.type === 'tag' ? order.slice(0, Math.max(1, order.length - this.target)) : []);
     this.state.players.forEach((p, id) => {
       p.place = 0;
+      p.points = 0;
+      p.it = carriers.has(id);
+      if (p.it) this.bombs.set(id, { since: this.goTick, from: '' });
       if (this.participants.has(id)) p.status = ST_PLAYING;
       else if (p.status !== ST_ELIMINATED) p.status = ST_ELIMINATED;
     });
@@ -222,7 +238,13 @@ export class Match {
   private onFinish(sp: SimPlayer) {
     const p = this.player(sp.id);
     const r = this.plan[this.roundIndex];
-    if (!p || !r || this.state.phase !== 'playing' || p.status !== ST_PLAYING || r.type !== 'race') return;
+    if (!p || !r || this.state.phase !== 'playing' || p.status !== ST_PLAYING) return;
+    if (r.type === 'final') {
+      // Crown finals: first to the crown takes the match.
+      this.endRound(r, [sp.id]);
+      return;
+    }
+    if (r.type !== 'race') return;
     p.status = ST_QUALIFIED;
     p.place = ++this.finishOrder;
     this.state.qualified = this.finishOrder;
@@ -232,7 +254,9 @@ export class Match {
   /** Returns true when the fall eliminates (survival / final); otherwise the sim respawns the player. */
   private onFell(sp: SimPlayer): boolean {
     const r = this.plan[this.roundIndex];
-    if (this.state.phase === 'lobby' || !r || r.type === 'race') return false;
+    // Only survival rounds and last-one-standing finals knock you out for falling.
+    const knockout = r && (r.type === 'survival' || (r.type === 'final' && !this.sim.map.finish));
+    if (this.state.phase === 'lobby' || !knockout) return false;
     const p = this.player(sp.id);
     if (p && p.status === ST_PLAYING) {
       p.status = ST_ELIMINATED;
@@ -240,6 +264,48 @@ export class Match {
     }
     sp.active = false;
     return true;
+  }
+
+  /** Tag: a bomb changes hands when its carrier touches someone who has none. */
+  private onTouch(a: SimPlayer, b: SimPlayer) {
+    if (this.state.phase !== 'playing' || this.plan[this.roundIndex]?.type !== 'tag') return;
+    const pa = this.player(a.id), pb = this.player(b.id);
+    if (!pa || !pb || pa.it === pb.it || pa.status !== ST_PLAYING || pb.status !== ST_PLAYING) return;
+    const [from, to, giver, taker] = pa.it ? [a.id, b.id, pa, pb] : [b.id, a.id, pb, pa];
+    const bomb = this.bombs.get(from);
+    if (!bomb || this.now - bomb.since < (bomb.from === to ? TAG_NO_RETURN : TAG_HOLD)) return;
+    this.bombs.delete(from);
+    this.bombs.set(to, { since: this.now, from });
+    giver.it = false;
+    taker.it = true;
+  }
+
+  /** Zone rounds: score everyone standing in the zone. Tag rounds: tell the bots whom to chase or run from. */
+  private playModes(r: RoundPlan, running: string[]) {
+    if (r.type === 'points') {
+      const t = this.sim.worldTick * DT;
+      for (const id of running) {
+        const s = this.sim.players.get(id)?.state;
+        if (!s || !onHill(this.sim.map, t, s.px, s.py - CHAR.centerHeight, s.pz)) continue;
+        const n = (this.zoneTicks.get(id) ?? 0) + 1;
+        this.zoneTicks.set(id, n);
+        if (n % 3 === 0) this.player(id)!.points = n / 3;
+      }
+    } else if (r.type === 'tag') {
+      for (const id of running) {
+        const me = this.sim.players.get(id);
+        if (!me?.bot) continue;
+        const it = this.player(id)!.it;
+        let best: SimPlayer | null = null, bestD = Infinity;
+        for (const other of running) {
+          if (other === id || this.player(other)!.it === it) continue;
+          const o = this.sim.players.get(other)!;
+          const d = Math.hypot(o.state.px - me.state.px, o.state.pz - me.state.pz);
+          if (d < bestD) { bestD = d; best = o; }
+        }
+        me.bot.goal = best && (it || bestD < 12) ? { x: best.state.px, z: best.state.pz, flee: !it } : null;
+      }
+    }
   }
 
   /** Called every server tick, after the simulation step. */
@@ -270,6 +336,7 @@ export class Match {
       case 'playing': {
         const r = this.plan[this.roundIndex];
         const running = this.running();
+        this.playModes(r, running);
         if (roundOver({ type: r.type, target: this.target, running: running.length, qualified: this.finishOrder, timeUp: this.now >= st.phaseEnd })) {
           this.endRound(r, running);
         }
@@ -292,9 +359,16 @@ export class Match {
   private endRound(r: RoundPlan, running: string[]) {
     const st = this.state;
     let through: string[];
+    for (const sp of this.sim.players.values()) if (sp.bot) sp.bot.goal = null;
     if (r.type === 'race') {
       through = [];
       st.players.forEach((p, id) => { if (this.participants.has(id) && p.status === ST_QUALIFIED) through.push(id); });
+    } else if (r.type === 'points') {
+      through = topScorers(running.map((id) => ({ id, score: this.zoneTicks.get(id) ?? 0 })), this.target);
+    } else if (r.type === 'tag') {
+      // Everyone without a bomb is through (if somehow nobody is, nobody goes out).
+      const safe = running.filter((id) => !this.player(id)!.it);
+      through = safe.length ? safe : running;
     } else if (r.type === 'final' && running.length > 1) {
       // Time ran out with several still up: whoever holds the middle of the arena.
       const c = this.sim.map.bot.arena?.center ?? [0, 0, 0];

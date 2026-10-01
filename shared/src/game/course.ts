@@ -1,5 +1,24 @@
+import type { Vec3 } from '../math';
 import type { MapDef, Zone } from '../maps/types';
 import { spawnPoints } from '../maps/index';
+
+/** Height below which a player is out, at round time `t` seconds (rises on lava maps). */
+export function killYAt(map: MapDef, t: number): number {
+  const l = map.lava;
+  return l ? Math.min(l.yMax, map.killY + Math.max(0, t - l.delay) * l.speed) : map.killY;
+}
+
+/** Centre of the scoring zone at round time `t` seconds (points maps). */
+export function hillAt(map: MapDef, t: number): Vec3 | null {
+  const h = map.hill;
+  return h ? h.spots[Math.floor(Math.max(0, t) / h.hold) % h.spots.length] : null;
+}
+
+/** Whether a feet position scores in the zone right now. */
+export function onHill(map: MapDef, t: number, x: number, y: number, z: number): boolean {
+  const c = hillAt(map, t);
+  return !!c && Math.abs(y - c[1]) < 3 && (x - c[0]) ** 2 + (z - c[2]) ** 2 < map.hill!.r ** 2;
+}
 
 export function inZone(zone: Zone, x: number, y: number, z: number): boolean {
   return x >= zone.min[0] && x <= zone.max[0] && y >= zone.min[1] && y <= zone.max[1] && z >= zone.min[2] && z <= zone.max[2];

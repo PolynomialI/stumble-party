@@ -5,6 +5,7 @@ const base: Record<MatKey, number> = {
   accent: 0xff8a1f, accentAlt: 0x8c5cff, hazard: 0xff3b47, bounce: 0x2ee6a6, conveyor: 0x3a4468,
   finish: 0xffffff, ice: 0xaee9ff, grass: 0x5fd64e, rock: 0x9aa7c7, metal: 0xc9d3e6,
   bumper: 0xff4fb8, tile: 0xffcf3a, tileAlt: 0xff9f1c, white: 0xffffff, dark: 0x2a2f45,
+  wood: 0xb8793f, leaf: 0x3fb34f, lava: 0xff5a1f, water: 0x2f9bff, snow: 0xf2f8ff, gold: 0xffc83d,
 };
 
 /** Bright midday sky: blue floors, candy obstacles. */
@@ -56,6 +57,66 @@ export const TWILIGHT: Theme = {
     floor: 0x4b3bd1, floorAlt: 0x6a5cf0, path: 0x5ff2e0, wall: 0xff5fa8, accent: 0xffc23d,
     accentAlt: 0x37d6ff, hazard: 0xff4774, bounce: 0x7dff9a, tile: 0x6be4ff, tileAlt: 0xff8ad8,
     trim: 0xf6eaff,
+  },
+};
+
+/** Deep forest: mossy floors, timber and a green-gold sky. */
+export const FOREST: Theme = {
+  skyTop: 0x2a9d8f, skyHorizon: 0xc9f2c7, skyBottom: 0xeffbe6, fog: 0xc4eccb,
+  sunColor: 0xfff3c4, sunDir: [0.35, 0.8, -0.4], cloudTint: 0xfaffee,
+  palette: {
+    ...base,
+    floor: 0x4caf50, floorAlt: 0x6cc24a, path: 0xd9a05b, wall: 0x8d5a34, trim: 0xf3e9d2, accent: 0xe07a3f,
+    accentAlt: 0x7b5cd6, hazard: 0xe63946, bounce: 0xff5d8f, rock: 0x8a8f86, tile: 0xc98b4a, tileAlt: 0xa86e37,
+    grass: 0x58c44a, water: 0x3aa7e8,
+  },
+};
+
+/** Frozen peaks: ice, snow and a pale winter sky. */
+export const FROST: Theme = {
+  skyTop: 0x3f7fd9, skyHorizon: 0xd6ecff, skyBottom: 0xf4fbff, fog: 0xd9eeff,
+  sunColor: 0xf3f8ff, sunDir: [-0.45, 0.7, 0.4], cloudTint: 0xffffff,
+  palette: {
+    ...base,
+    floor: 0x7fb6f5, floorAlt: 0xa5cdfa, path: 0xe9f4ff, wall: 0x5567d8, trim: 0xffffff, accent: 0xff7aa8,
+    accentAlt: 0x44d1c5, hazard: 0xff4d6d, bounce: 0xffd23f, rock: 0xd8e6f5, tile: 0x9fd8ff, tileAlt: 0x6fb8f0,
+    leaf: 0x2f8f6b, wood: 0x7a5a45,
+  },
+};
+
+/** Volcano at dusk: dark rock, glowing lava. */
+export const VOLCANO: Theme = {
+  skyTop: 0x2b1438, skyHorizon: 0xff7a3d, skyBottom: 0xffc27a, fog: 0xd9683f,
+  sunColor: 0xffc48a, sunDir: [0.5, 0.5, 0.45], cloudTint: 0xffb38a,
+  palette: {
+    ...base,
+    floor: 0x5b4a5e, floorAlt: 0x74607a, path: 0xf2a65a, wall: 0x9b2d30, trim: 0xffe0b8, accent: 0xffb703,
+    accentAlt: 0xe5383b, hazard: 0xff2e2e, bounce: 0x7cf29c, rock: 0x4a3c4d, tile: 0xff9248, tileAlt: 0xd9642e,
+    dark: 0x2a2030, conveyor: 0x33283a,
+  },
+};
+
+/** Clockwork factory: brass, teal and steel under an evening sky. */
+export const WORKS: Theme = {
+  skyTop: 0x1f4e79, skyHorizon: 0xf2c57c, skyBottom: 0xffe9c2, fog: 0xe6c79a,
+  sunColor: 0xffe2b0, sunDir: [-0.5, 0.6, -0.4], cloudTint: 0xfff0d8,
+  palette: {
+    ...base,
+    floor: 0x2a9d8f, floorAlt: 0x3fb8a8, path: 0xe9c46a, wall: 0xc8553d, trim: 0xf6f1e4, accent: 0xf4a261,
+    accentAlt: 0xe76f51, hazard: 0xe63946, bounce: 0x8ce99a, metal: 0xd9c9a8, rock: 0x6f7f8c, tile: 0xe9c46a,
+    tileAlt: 0xf4a261,
+  },
+};
+
+/** Water park: aqua, sunshine yellow and coral. */
+export const SPLASH: Theme = {
+  skyTop: 0x0f8fe8, skyHorizon: 0xb5f0ff, skyBottom: 0xe9fdff, fog: 0xbdefff,
+  sunColor: 0xfff8d6, sunDir: [0.4, 0.85, 0.3], cloudTint: 0xffffff,
+  palette: {
+    ...base,
+    floor: 0xffd23f, floorAlt: 0xffe27a, path: 0x23c4e8, wall: 0xff6b6b, trim: 0xffffff, accent: 0xff7f50,
+    accentAlt: 0x2ec4b6, hazard: 0xff3d5a, bounce: 0xb8f24a, conveyor: 0x1a9fd1, tile: 0x5ee0ff, tileAlt: 0x2bb8e6,
+    wood: 0xc98b4a,
   },
 };
 

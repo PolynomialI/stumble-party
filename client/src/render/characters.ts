@@ -24,6 +24,8 @@ export interface CharPose {
   emoteT: number;
   /** Height of the ground under the character (for the blob shadow), or NaN if none. */
   groundY: number;
+  /** Carrying a bomb (tag rounds). */
+  it?: boolean;
 }
 
 type ColorMode = 'main' | 'accent' | number;
@@ -161,6 +163,9 @@ function buildParts(q: QualityProfile): Record<string, PartSpec> {
     earInner: { geo: sphere(0.06, 0.45, 1.6, 0.2, 10), color: PINK, perPlayer: 2 },
     catEar: { geo: new THREE.ConeGeometry(0.12, 0.22, 12), color: 'main', perPlayer: 2, shadow: true },
     halo: { geo: halo, color: GOLD, emissive: 0.5, roughness: 0.15, perPlayer: 1 },
+    // Tag rounds: a bomb bobbing over the carrier's head.
+    bomb: { geo: sphere(0.3, 1, 1, 1, 16), color: DARK, roughness: 0.25, perPlayer: 1 },
+    spark: { geo: sphere(0.09, 1, 1, 1, 8), color: 0xffb300, basic: true, perPlayer: 1 },
   };
 }
 
@@ -587,6 +592,14 @@ export class CharacterRenderer {
       if (piece.spin) _m.multiply(_tmp.makeRotationY(a.propeller));
       if (piece.scale) _m.multiply(_tmp.makeScale(piece.scale, piece.scale, piece.scale));
       set(piece.part, k, _m);
+    }
+
+    if (p.it) {
+      const bob = Math.sin(this.time * 7) * 0.06;
+      const pulse = 1 + Math.sin(this.time * 14) * 0.08;
+      set('bomb', 0, _m.makeTranslation(p.x, p.y + 2.45 + bob, p.z).multiply(_tmp.makeScale(pulse, pulse, pulse)));
+      const fl = 0.7 + Math.random() * 0.8;
+      set('spark', 0, _m.makeTranslation(p.x + 0.12, p.y + 2.8 + bob, p.z).multiply(_tmp.makeScale(fl, fl, fl)));
     }
 
     for (const mesh of this.meshes.values()) mesh.instanceMatrix.needsUpdate = true;

@@ -278,13 +278,6 @@ html, body {
 }
 .btn-light svg { width: 22px; height: 22px; flex: none; }
 .btn.small { font-size: 17px; padding: 9px 16px 11px; border-radius: 14px; }
-.menu-hint {
-  margin: 4px 0 0;
-  color: rgba(255, 255, 255, 0.9);
-  font-weight: 700;
-  font-size: 13px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-}
 
 .overlay {
   position: absolute;
@@ -431,6 +424,8 @@ html, body {
   will-change: transform;
 }
 .nametag.self { background: rgba(255, 111, 174, 0.85); }
+.nametag.hot { background: #e5263c; }
+.nametag.hot::before { content: "💣 "; }
 
 /* Menu: private rooms */
 .btn-row { display: flex; gap: 10px; }
@@ -486,9 +481,8 @@ html, body {
   flex-direction: column;
   gap: 10px;
 }
-.lobby-card.quick { top: auto; bottom: 18px; left: 50%; right: auto; transform: translateX(-50%); width: auto; padding: 8px 18px; }
-.lobby-card.quick p { margin: 0; font-weight: 800; font-size: 14px; }
-.lobby-title { font-weight: 900; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: #ff4f8f; }
+.lobby-opts { display: flex; gap: 8px; }
+.lobby-opts .btn { flex: 1; padding: 8px 6px 10px; font-size: 15px; }
 .room-code {
   font-family: inherit;
   font-weight: 900;
@@ -502,14 +496,11 @@ html, body {
   color: #232a78;
   cursor: copy;
 }
-.lobby-sub { font-size: 13px; font-weight: 700; opacity: 0.75; margin-top: -4px; }
 .lobby-players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow: auto; }
 .lobby-players li { font-weight: 800; font-size: 15px; padding: 5px 10px; border-radius: 10px; background: #f1f4ff; display: flex; align-items: center; gap: 6px; }
-.lobby-players em { font-style: normal; opacity: 0.6; font-size: 13px; }
 .host-tag { font-size: 10px; font-weight: 900; color: #fff; background: #ff9f1c; padding: 2px 6px; border-radius: 6px; }
 .lobby-wait { font-weight: 800; font-size: 14px; opacity: 0.8; text-align: center; }
 .lobby-card .btn-play { font-size: 26px; }
-.lobby-card .toggle { align-self: flex-start; }
 
 .round-card {
   position: absolute;
@@ -542,6 +533,8 @@ html, body {
 .t-race { background: #3a86ff; }
 .t-survival { background: #ff8a1f; }
 .t-final { background: #ff3d7f; }
+.t-points { background: #f2a900; }
+.t-tag { background: #8c5cff; }
 .map-name {
   font-weight: 900;
   font-style: italic;
@@ -553,7 +546,6 @@ html, body {
   paint-order: stroke fill;
   text-shadow: 0 5px 0 #232a78;
 }
-.map-blurb { font-weight: 700; font-size: 16px; margin-top: 8px; }
 .map-goal { margin-top: 12px; font-weight: 900; font-size: 18px; color: #fff; background: #232a78; border-radius: 14px; padding: 8px 12px; }
 
 .spectate-bar {
@@ -599,11 +591,9 @@ html, body {
   text-align: center;
   color: #232a78;
 }
-.results-title { font-weight: 900; font-size: 26px; }
-.results-mine { margin-top: 6px; font-weight: 900; font-size: 18px; }
+.results-mine { font-weight: 900; font-size: 26px; }
 .results-mine.good { color: #19a34a; }
 .results-mine.bad { color: #e23d55; }
-.results-sub { margin-top: 8px; font-weight: 800; font-size: 14px; opacity: 0.7; }
 .results-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .results-list li { font-weight: 800; font-size: 14px; padding: 5px 10px; border-radius: 999px; background: #e9fbe9; color: #136b33; }
 .results-list li.me { background: #ff6fae; color: #fff; }

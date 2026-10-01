@@ -1,6 +1,6 @@
 import type { MapDef } from '../maps/types';
 
-export type RoundType = 'race' | 'survival' | 'final';
+export type RoundType = 'race' | 'survival' | 'points' | 'tag' | 'final';
 
 export interface RoundPlan {
   mapId: string;
@@ -9,14 +9,10 @@ export interface RoundPlan {
   qualify: number;
 }
 
-export interface MapPool {
-  race: string[];
-  survival: string[];
-  final: string[];
-}
+export type MapPool = Record<RoundType, string[]>;
 
 export function mapPool(maps: readonly MapDef[]): MapPool {
-  const pool: MapPool = { race: [], survival: [], final: [] };
+  const pool: MapPool = { race: [], survival: [], points: [], tag: [], final: [] };
   for (const m of maps) if (m.type !== 'lobby') pool[m.type].push(m.id);
   return pool;
 }
@@ -27,6 +23,13 @@ export function finalSize(n: number): number {
   return Math.min(6, Math.max(2, Math.round(n * 0.2)));
 }
 
+export const MAX_ROUNDS = 8;
+
+/** Rounds a match gets when nobody chose a number: the bigger the lobby, the longer the show. */
+export function autoRounds(n: number): number {
+  return n >= 24 ? 6 : n >= 16 ? 5 : n >= 8 ? 4 : 3;
+}
+
 function pick(list: string[], used: Set<string>, rand: () => number): string {
   const fresh = list.filter((id) => !used.has(id));
   const from = fresh.length ? fresh : list;
@@ -35,38 +38,55 @@ function pick(list: string[], used: Set<string>, rand: () => number): string {
   return id;
 }
 
+/** Middle-round types and how often each comes up. */
+const MIX: [RoundType, number][] = [['race', 3], ['survival', 3], ['points', 2], ['tag', 2]];
+
 /**
- * Plans a match: 3 rounds (4 from 12 players) ending in a final, with qualification targets that shrink the
- * field geometrically toward the final size. Tiny lobbies get shorter matches: 2 players play a single race
- * (first home wins), 1 player just runs a course.
+ * Plans a match: a race to open, a mix of rounds, then a final. `rounds` (0 = automatic) is how many rounds
+ * to play; it is capped so that every round can still knock someone out. Qualification targets shrink the
+ * field geometrically toward the final size. Tiny lobbies get shorter matches: 1 or 2 players play a single
+ * race (first home wins).
  */
-export function planMatch(n: number, pool: MapPool, rand: () => number): RoundPlan[] {
+export function planMatch(n: number, pool: MapPool, rand: () => number, rounds = 0): RoundPlan[] {
   const used = new Set<string>();
-  if (n <= 1) return [{ mapId: pick(pool.race, used, rand), type: 'race', qualify: 1 }];
-  if (n === 2) return [{ mapId: pick(pool.race, used, rand), type: 'race', qualify: 1 }];
+  if (n <= 2) return [{ mapId: pick(pool.race, used, rand), type: 'race', qualify: 1 }];
   if (n === 3) {
     return [
       { mapId: pick(pool.race, used, rand), type: 'race', qualify: 2 },
       { mapId: pick(pool.final, used, rand), type: 'final', qualify: 1 },
     ];
   }
-  const total = n >= 12 ? 4 : 3;
-  const k = total - 1;
   const f = finalSize(n);
-  const types: RoundType[] = k === 3
-    ? ['race', rand() < 0.5 ? 'race' : 'survival', 'survival']
-    : ['race', rand() < 0.4 ? 'race' : 'survival'];
+  const total = Math.max(2, Math.min(rounds || autoRounds(n), MAX_ROUNDS, n - f + 1));
+  const k = total - 1;
   const plan: RoundPlan[] = [];
   let prev = n;
+  let last: RoundType | null = null;
   for (let i = 1; i <= k; i++) {
+    // Open with a race; after that anything goes, but never the same kind twice running.
+    let type: RoundType = 'race';
+    if (i > 1) {
+      const options = MIX.filter(([t]) => t !== last && pool[t].length > 0);
+      let roll = rand() * options.reduce((sum, [, w]) => sum + w, 0);
+      type = options[options.length - 1][0];
+      for (const [t, w] of options) {
+        if ((roll -= w) < 0) { type = t; break; }
+      }
+    }
+    last = type;
     let q = i === k ? f : Math.round(n * Math.pow(f / n, i / k));
     q = Math.min(q, prev - 1);
     q = Math.max(q, f + (k - i));
-    plan.push({ mapId: pick(pool[types[i - 1]].length ? pool[types[i - 1]] : pool.race, used, rand), type: types[i - 1], qualify: q });
+    plan.push({ mapId: pick(pool[type], used, rand), type, qualify: q });
     prev = q;
   }
   plan.push({ mapId: pick(pool.final, used, rand), type: 'final', qualify: 1 });
   return plan;
+}
+
+/** Points rounds: the `target` highest scorers advance (ties go to the lower id: arbitrary but stable). */
+export function topScorers(scores: { id: string; score: number }[], target: number): string[] {
+  return [...scores].sort((x, y) => y.score - x.score || (x.id < y.id ? -1 : 1)).slice(0, Math.max(1, target)).map((x) => x.id);
 }
 
 /**
@@ -88,7 +108,7 @@ export interface RoundStatus {
   timeUp: boolean;
 }
 
-/** Whether a round is over. Race: enough finishers, time up, or nobody left running. Survival/final: few enough left. */
+/** Whether a round is over. Race: enough finishers, time up, or nobody left running. The rest: time up, or few enough left. */
 export function roundOver(s: RoundStatus): boolean {
   if (s.timeUp) return true;
   if (s.type === 'race') return s.qualified >= s.target || s.running === 0;

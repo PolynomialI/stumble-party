@@ -21,6 +21,10 @@ export const PlayerState = schema({
   connected: t.boolean().default(true),
   /** Rounds survived this match. */
   score: t.uint8(),
+  /** Points this round (zone rounds): ten per second in the zone. */
+  points: t.uint16(),
+  /** Holding a bomb (tag rounds). */
+  it: t.boolean(),
 }, 'PlayerState');
 export type PlayerState = SchemaType<typeof PlayerState>;
 
@@ -41,6 +45,8 @@ export const GameState = schema({
   host: t.string(),
   isPrivate: t.boolean(),
   fillBots: t.boolean().default(true),
+  /** Rounds the host asked for (0 = automatic). */
+  roundsWanted: t.uint8(),
   winner: t.string(),
   players: t.map(PlayerState),
 }, 'GameState');
