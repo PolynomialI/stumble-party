@@ -13,7 +13,9 @@ export type MatKey =
   | 'wood' | 'leaf' | 'lava' | 'water' | 'snow' | 'gold';
 
 /** Surface detail painted by the client on top of the material colour. */
-export type Tex = 'none' | 'grid' | 'stripes' | 'dots' | 'checker' | 'chevron' | 'planks';
+export type Tex =
+  | 'none' | 'grid' | 'stripes' | 'dots' | 'checker' | 'chevron' | 'planks'
+  | 'wood' | 'rock' | 'grass' | 'ice' | 'metal' | 'soft' | 'lava' | 'waves';
 
 export interface Piece {
   shape: ShapeKind;

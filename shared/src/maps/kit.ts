@@ -105,6 +105,68 @@ function prop(c: Course, x: number, y: number, z: number) {
   }
 }
 
+/** Something huge in the distance, so the course feels like part of a world: a giant tree, a volcano, a peak... */
+function landmark(c: Course, side: number, z: number) {
+  const x = side * (52 + c.rand() * 16), y = c.minY - 16;
+  const P = c.pieces;
+  const stack = (sizes: [number, number, MatKey][]) => {
+    let top = y;
+    for (const [d, h, mat] of sizes) {
+      P.push(deco(cyl([x, top + h / 2, z], d, h, mat, { round: Math.min(2, h * 0.3) })));
+      top += h * 0.82;
+    }
+    return top;
+  };
+  switch (c.prop) {
+    case 'tree': {
+      P.push(deco(cyl([x, y + 22, z], 8, 48, 'wood', { round: 1.5 })));
+      P.push(deco(ball([x, y + 52, z], 32, 'leaf')));
+      P.push(deco(ball([x + 11, y + 43, z + 6], 21, 'leaf')));
+      P.push(deco(ball([x - 10, y + 45, z - 7], 19, 'leaf')));
+      break;
+    }
+    case 'pine':
+    case 'crystal':
+      stack([[64, 16, 'rock'], [48, 16, 'rock'], [33, 15, 'snow'], [19, 13, 'snow'], [8, 10, 'snow']]);
+      break;
+    case 'torch': {
+      const top = stack([[72, 15, 'dark'], [54, 15, 'dark'], [38, 14, 'rock'], [24, 11, 'rock']]);
+      P.push(deco(cyl([x, top - 0.6, z], 17, 2, 'lava', { round: 0.6 })));
+      P.push(deco(ball([x + 2, top + 5, z], 7, 'lava')));
+      P.push(deco(ball([x - 3, top + 11, z + 2], 4.5, 'lava')));
+      break;
+    }
+    case 'lolly': {
+      P.push(deco(cyl([x, y + 22, z], 2.4, 46, 'white', { round: 0.8 })));
+      P.push(deco(cyl([x, y + 52, z], 26, 5, c.rand() < 0.5 ? 'accent' : 'bumper', { rot: [90 * DEG, side * 0.5, 0], tex: 'stripes', round: 2 })));
+      break;
+    }
+    case 'palm': {
+      const top = stack([[12, 16, 'trim'], [11, 16, 'wall'], [10, 16, 'trim'], [9, 12, 'wall']]);
+      P.push(deco(cyl([x, top + 1.5, z], 13, 2.4, 'trim', { round: 0.8 })));
+      P.push(deco(ball([x, top + 6, z], 8, 'gold')));
+      break;
+    }
+    case 'gear': {
+      P.push(deco(cyl([x, y + 20, z], 5, 42, 'metal', { round: 1 })));
+      const teeth: Piece[] = [deco(cyl([0, 0, 0], 34, 4.5, 'accent', { rot: [90 * DEG, 0, 0], tex: 'dots', round: 1 }))];
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2;
+        teeth.push(deco(box([Math.cos(a) * 18.5, Math.sin(a) * 18.5, 0], [6, 5, 4.4], 'accent', { rot: [0, 0, a], round: 0.8 })));
+      }
+      teeth.push(deco(cyl([0, 0, 0], 8, 6, 'metal', { rot: [90 * DEG, 0, 0], round: 1 })));
+      c.obstacles.push({ pos: [x, y + 44, z], rot: [0, side * 0.5, 0], motion: { kind: 'spin', axis: 'z', speed: side * 0.25 }, parts: teeth });
+      break;
+    }
+    case 'lantern': {
+      const top = stack([[13, 20, 'wall'], [12, 20, 'wall'], [15.5, 4, 'trim'], [11, 8, 'accentAlt'], [6, 7, 'accentAlt']]);
+      P.push(deco(cyl([x, top + 3, z], 0.5, 8, 'white', { round: 0.2 })));
+      P.push(deco(box([x + 2.2, top + 5.4, z], [4, 2.6, 0.2], 'accent', { round: 0.08 })));
+      break;
+    }
+  }
+}
+
 /** Support pillars under a stretch of floor and scenery along both sides of it. */
 function dress(c: Course, z0: number, z1: number, w: number, y = c.y) {
   if (z1 - z0 >= 9) {
@@ -140,9 +202,9 @@ export function start(c: Course, depth = 15) {
   arch(c, z + depth - 1, w, 'accent', 'stripes');
   // Towers either side of the gate make the start read from across the map.
   for (const s of [-1, 1]) {
-    c.pieces.push(deco(cyl([s * (w / 2 + 2.6), c.y + 1, z + depth - 1], 3, 16, 'wall', { round: 0.5 })));
-    c.pieces.push(deco(cyl([s * (w / 2 + 2.6), c.y + 9.6, z + depth - 1], 3.8, 1.2, 'trim', { round: 0.4 })));
-    c.pieces.push(deco(ball([s * (w / 2 + 2.6), c.y + 11, z + depth - 1], 2.4, 'accentAlt')));
+    c.pieces.push(deco(cyl([s * (w / 2 + 2.6), c.y + 1, z + depth - 1], 2.4, 16, 'wall', { round: 0.5 })));
+    c.pieces.push(deco(cyl([s * (w / 2 + 2.6), c.y + 9.6, z + depth - 1], 3.2, 1.2, 'trim', { round: 0.4 })));
+    c.pieces.push(deco(ball([s * (w / 2 + 2.6), c.y + 11, z + depth - 1], 2.2, 'accentAlt')));
   }
   c.spawn = { pos: [0, c.y, z + 5.5], yaw: 0, cols: 8, spacing: 1.5 };
   c.path.push({ p: [0, c.y, z + depth - 3], spread: 5 });
@@ -612,6 +674,9 @@ export function raceMap(spec: RaceSpec): MapDef {
   const c = course(spec.prop, seed);
   spec.build(c);
   if (!c.spawn || !c.finish) throw new Error(`${spec.id}: a race needs start() and finish()`);
+  landmark(c, -1, c.z * 0.3);
+  landmark(c, 1, c.z * 0.62);
+  landmark(c, c.rand() < 0.5 ? -0.35 : 0.35, c.z + 55);
   return {
     id: spec.id, name: spec.name, type: 'race', blurb: spec.blurb, timeLimit: spec.timeLimit,
     killY: c.minY - 12, theme: spec.theme, spawn: c.spawn, pieces: c.pieces, obstacles: c.obstacles,

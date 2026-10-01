@@ -80,7 +80,7 @@ export const FROST: Theme = {
     ...base,
     floor: 0x7fb6f5, floorAlt: 0xa5cdfa, path: 0xe9f4ff, wall: 0x5567d8, trim: 0xffffff, accent: 0xff7aa8,
     accentAlt: 0x44d1c5, hazard: 0xff4d6d, bounce: 0xffd23f, rock: 0xd8e6f5, tile: 0x9fd8ff, tileAlt: 0x6fb8f0,
-    leaf: 0x2f8f6b, wood: 0x7a5a45,
+    leaf: 0x2f8f6b, wood: 0x7a5a45, grass: 0xeaf4ff,
   },
 };
 
@@ -92,7 +92,7 @@ export const VOLCANO: Theme = {
     ...base,
     floor: 0x5b4a5e, floorAlt: 0x74607a, path: 0xf2a65a, wall: 0x9b2d30, trim: 0xffe0b8, accent: 0xffb703,
     accentAlt: 0xe5383b, hazard: 0xff2e2e, bounce: 0x7cf29c, rock: 0x4a3c4d, tile: 0xff9248, tileAlt: 0xd9642e,
-    dark: 0x2a2030, conveyor: 0x33283a,
+    dark: 0x2a2030, conveyor: 0x33283a, grass: 0x4a3c4d, leaf: 0x9a4a2a, wood: 0x3a2b2f,
   },
 };
 

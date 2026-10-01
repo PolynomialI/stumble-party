@@ -14,6 +14,8 @@ export class CameraRig {
   private curDist = 7;
   private initialized = false;
   private kick = 0;
+  /** Closest the camera may come (the outfit editor moves in for a close-up). */
+  minDistance = 4;
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
@@ -29,7 +31,7 @@ export class CameraRig {
   update(dt: number, focus: THREE.Vector3, look: [number, number], zoom: number, world: PhysicsWorld | null) {
     this.yaw -= look[0];
     this.pitch = clamp(this.pitch + look[1], -0.35, 1.25);
-    this.distance = clamp(this.distance + zoom * 0.8, 4, 12);
+    this.distance = clamp(this.distance + zoom * 0.8, this.minDistance, 12);
 
     this.target.set(focus.x, focus.y + 1.05, focus.z);
     if (!this.initialized) {

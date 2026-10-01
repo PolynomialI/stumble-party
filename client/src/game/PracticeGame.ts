@@ -102,6 +102,7 @@ export class PracticeGame {
 
   setCloseup(on: boolean) {
     this.closeup = on;
+    this.cam.minDistance = on ? 2.6 : 4;
     if (on) {
       this.emote = 1;
       this.emoteT = 0;
@@ -195,7 +196,7 @@ export class PracticeGame {
         const k = 1 - Math.exp(-dt * 4);
         this.cam.yaw += wrapAngle(Math.PI + this.state.yaw - this.cam.yaw) * k;
         this.cam.pitch += (0.06 - this.cam.pitch) * k;
-        this.cam.distance += (4 - this.cam.distance) * k;
+        this.cam.distance += (2.9 - this.cam.distance) * k;
       } else {
         this.cam.yaw += dt * 0.12;
         this.cam.pitch = 0.16;

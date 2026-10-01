@@ -14,14 +14,13 @@ export class Customizer {
     this.root.innerHTML = `
       <div class="cz-panel" role="dialog" aria-label="Customize your character">
         <div class="cz-head">
-          <h2>Your look</h2>
           <button class="btn btn-alt small" data-act="random">Shuffle</button>
+          <button class="btn btn-play small" data-act="done">Done</button>
         </div>
         <div class="cz-group"><div class="cz-label">Suit</div><div class="swatches" data-key="body"></div></div>
         <div class="cz-group"><div class="cz-label">Accent</div><div class="swatches" data-key="accent"></div></div>
         <div class="cz-group"><div class="cz-label">Pattern</div><div class="chips" data-key="pattern"></div></div>
         <div class="cz-group"><div class="cz-label">Hat</div><div class="chips" data-key="hat"></div></div>
-        <button class="btn btn-play" data-act="done">Done</button>
       </div>`;
     const swatches = (key: 'body' | 'accent') => {
       const el = this.root.querySelector<HTMLDivElement>(`.swatches[data-key=${key}]`)!;

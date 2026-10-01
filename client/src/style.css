@@ -382,11 +382,12 @@ html, body {
   background: #eef2ff;
   border: 2px solid #c7d0f5;
   border-radius: 999px;
-  padding: 7px 12px 8px;
+  padding: 6px 10px 7px;
   cursor: pointer;
 }
 .chip.on { background: #232a78; border-color: #232a78; color: #fff; }
-.cz-panel .btn-play { font-size: 26px; padding: 10px 16px 12px; }
+.cz-head .btn { flex: 1; }
+.cz-head { gap: 10px; }
 
 /* Settings */
 .settings-card { align-items: stretch; text-align: left; gap: 10px; }

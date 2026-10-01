@@ -29,7 +29,7 @@ export const CHAR = {
   diveUpAir: 3.2,
   slideTime: 0.42,
   slideDecel: 10,
-  getUpTime: 0.22,
+  getUpTime: 0.32,
   turnRate: 13,
   /** Surfaces flatter than this (normal.y) count as ground; steeper ones behave like walls. */
   minGroundNy: 0.6,
@@ -109,7 +109,7 @@ function setMode(c: CharState, mode: number) {
 }
 
 /** Knocks a character away: sets its velocity and puts it into the tumbling stun state. */
-export function knock(c: CharState, dirX: number, dirZ: number, speed: number, up: number, stun = 0.55 + speed * 0.025) {
+export function knock(c: CharState, dirX: number, dirZ: number, speed: number, up: number, stun = 0.8 + speed * 0.03) {
   const len = Math.hypot(dirX, dirZ) || 1;
   c.vx = (dirX / len) * speed;
   c.vz = (dirZ / len) * speed;
@@ -272,7 +272,7 @@ export function stepCharacter(pw: PhysicsWorld, c: CharState, inp: InputCmd): vo
       const accel = CHAR.groundAccel * control * (ice ? 0.18 : 1) * dt;
       [hx, hz] = towards(hx, hz, wx * CHAR.runSpeed, wz * CHAR.runSpeed, accel);
     } else {
-      let decel = c.mode === MODE_SLIDE ? CHAR.slideDecel : c.mode === MODE_STUN ? 14 : CHAR.groundDecel;
+      let decel = c.mode === MODE_SLIDE ? CHAR.slideDecel : c.mode === MODE_STUN ? 9 : CHAR.groundDecel;
       if (ice) decel *= 0.1;
       [hx, hz] = towards(hx, hz, 0, 0, decel * dt);
     }

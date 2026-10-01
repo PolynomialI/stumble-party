@@ -59,8 +59,8 @@ export class Decor {
     const islands = profile.clouds >= 48 ? 12 : 7;
     const rockMat = mats.get({ color: map.theme.palette.rock, roughness: 0.8 });
     const grassMat = mats.get({ color: map.theme.palette.grass, roughness: 0.55 });
-    const trunkMat = mats.get({ color: 0x9b6a43, roughness: 0.7 });
-    const leafMat = mats.get({ color: 0x46c06a, roughness: 0.45 });
+    const trunkMat = mats.get({ color: map.theme.palette.wood, roughness: 0.7 });
+    const leafMat = mats.get({ color: map.theme.palette.leaf, roughness: 0.45 });
     const rock = new THREE.InstancedMesh(islandGeometry(hashString(map.id) + 1), rockMat, islands);
     const grassGeo = new THREE.CylinderGeometry(1, 0.92, 0.14, 18);
     const grass = new THREE.InstancedMesh(grassGeo, grassMat, islands);

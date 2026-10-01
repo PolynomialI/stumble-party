@@ -20,8 +20,13 @@ export const PALETTE: readonly { name: string; hex: number }[] = [
   { name: 'Peach', hex: 0xffcf9e },
 ];
 
-export const PATTERNS = ['Solid', 'Stripes', 'Dots', 'Split', 'Belly', 'Zigzag'] as const;
-export const HATS = ['None', 'Party Hat', 'Beanie', 'Top Hat', 'Propeller', 'Flower', 'Antenna', 'Bunny Ears', 'Cat Ears', 'Halo'] as const;
+export const PATTERNS = [
+  'Solid', 'Stripes', 'Dots', 'Split', 'Belly', 'Zigzag', 'Checker', 'Stars', 'Hearts', 'Fade', 'Flames', 'Overalls',
+] as const;
+export const HATS = [
+  'None', 'Party Hat', 'Beanie', 'Top Hat', 'Propeller', 'Flower', 'Antenna', 'Bunny Ears', 'Cat Ears', 'Halo',
+  'Crown', 'Cowboy', 'Headphones', 'Viking', 'Chef', 'Wizard',
+] as const;
 export const EMOTES = ['', 'Wave', 'Dance', 'Cheer', 'Giggle'] as const;
 export const EMOTE_COUNT = EMOTES.length - 1;
 

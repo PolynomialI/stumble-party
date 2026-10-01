@@ -6,11 +6,12 @@ import {
 import { normalizeAttributes, pieceGeometry } from './geometry';
 import type { MaterialLib, ToyOptions } from './materials';
 import type { QualityProfile } from './quality';
-import { TEX_SCALE } from './textures';
+import { TEX_SCALE, patternTextures } from './textures';
 import { Decor } from './decor';
 
 const DEFAULT_TEX: Partial<Record<MatKey, Tex>> = {
-  floor: 'grid', floorAlt: 'grid', hazard: 'stripes', conveyor: 'chevron', finish: 'checker', wood: 'planks',
+  floor: 'grid', floorAlt: 'grid', hazard: 'stripes', conveyor: 'chevron', finish: 'checker', wood: 'wood',
+  rock: 'rock', grass: 'grass', ice: 'ice', metal: 'metal', leaf: 'soft', snow: 'soft', lava: 'lava', dark: 'rock',
 };
 
 const MAT_LOOK: Partial<Record<MatKey, Partial<ToyOptions>>> = {
@@ -26,7 +27,7 @@ const MAT_LOOK: Partial<Record<MatKey, Partial<ToyOptions>>> = {
   lava: { roughness: 0.5, emissive: 0xff4a10, emissiveIntensity: 0.9 },
 };
 
-const FLOOR_TEX = new Set<Tex>(['grid', 'planks']);
+const FLOOR_TEX = new Set<Tex>(['grid', 'planks', 'wood', 'ice', 'metal']);
 
 function texOf(p: Piece): Tex {
   return p.tex ?? DEFAULT_TEX[p.mat] ?? 'none';
@@ -66,6 +67,7 @@ export class MapView {
   private readonly ownedMaterials: THREE.Material[] = [];
   private readonly decor: Decor;
   private sea: THREE.Mesh | null = null;
+  private seaTex: THREE.Texture | null = null;
   private hill: THREE.Group | null = null;
 
   constructor(readonly map: MapDef, private readonly mats: MaterialLib, private readonly profile: QualityProfile) {
@@ -83,10 +85,16 @@ export class MapView {
     const sea = this.map.sea;
     if (!sea) return;
     const lava = sea.mat === 'lava';
+    // A scrolling pattern: glowing cracks for lava, drifting ripples for water.
+    const tex = patternTextures(lava ? 'lava' : 'waves', 1, false)!.map.clone();
+    tex.repeat.set(26, 26 * 1.6);
+    this.seaTex = tex;
     const mat = new THREE.MeshLambertMaterial({
       color: this.map.theme.palette[sea.mat],
-      emissive: lava ? 0xff3a00 : 0x0a3a66,
-      emissiveIntensity: lava ? 0.85 : 0.25,
+      map: tex,
+      emissive: lava ? 0xff4a08 : 0x0a3a66,
+      emissiveMap: lava ? tex : null,
+      emissiveIntensity: lava ? 1.25 : 0.25,
       transparent: !lava,
       opacity: lava ? 1 : 0.86,
     });
@@ -247,6 +255,10 @@ export class MapView {
     }
     for (const b of this.belts) b.tex.offset.y -= b.speed * dt;
     this.decor.update(dt);
+    if (this.seaTex) {
+      this.seaTex.offset.x = t * 0.012;
+      this.seaTex.offset.y = t * 0.02;
+    }
     if (this.sea) {
       this.sea.position.y = (this.map.lava ? killYAt(this.map, t) + 0.5 : this.map.sea!.y) + Math.sin(t * 1.3) * 0.12;
     }
@@ -324,5 +336,6 @@ export class MapView {
     });
     this.ownedMaterials.forEach((m) => m.dispose());
     this.belts.forEach((b) => b.tex.dispose());
+    this.seaTex?.dispose();
   }
 }

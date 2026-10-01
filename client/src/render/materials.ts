@@ -70,6 +70,8 @@ export class MaterialLib {
       map: set?.map ?? null,
       emissive: new THREE.Color(o.emissive ?? 0x000000),
       emissiveIntensity: o.emissiveIntensity ?? 1,
+      // Glowing surfaces (lava) glow through their pattern: bright cracks, dark crust.
+      emissiveMap: o.emissive !== undefined ? set?.map ?? null : null,
       transparent: o.transparent ?? false,
       opacity: o.opacity ?? 1,
       vertexColors: o.vertexColors ?? false,
@@ -83,7 +85,7 @@ export class MaterialLib {
         normalMap: set?.normal ?? null,
         normalScale: new THREE.Vector2(0.9, 0.9),
       };
-      m = o.clearcoat && p.shadowMapSize >= 2048
+      m = o.clearcoat
         ? new THREE.MeshPhysicalMaterial({ ...params, clearcoat: 0.6, clearcoatRoughness: 0.18 })
         : new THREE.MeshStandardMaterial(params);
     } else {
