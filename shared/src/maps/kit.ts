@@ -426,6 +426,27 @@ export function discs(c: Course, n = 2, gap = 2.5) {
   c.z = end + 0.1;
 }
 
+/** A narrow path that doglegs left and right over the void. */
+export function zigzag(c: Course, n = 4) {
+  const seg = 9.5, off = 4.4, wide = 5.5;
+  let x = 0;
+  const cross = (to: number) => {
+    slab(c, c.z, c.z + wide, Math.abs(to - x) + wide, 'path', c.y, (x + to) / 2);
+    c.path.push({ p: [to, c.y, c.z + wide / 2], spread: 1.2 });
+  };
+  for (let i = 0; i < n; i++) {
+    const to = (i % 2 === 0 ? 1 : -1) * off;
+    cross(to);
+    slab(c, c.z + wide, c.z + seg, wide, alt(c), c.y, to);
+    c.pieces.push(deco(cyl([to, c.y - 8, c.z + seg - 2], 1.6, 14, 'rock', { round: 0.4 })));
+    c.path.push({ p: [to, c.y, c.z + seg - 1], spread: 1.2 });
+    c.z += seg;
+    x = to;
+  }
+  cross(0);
+  c.z += wide;
+}
+
 /** Floor with jump gaps in it. */
 export function gaps(c: Course, n = 3, gap = 2.6) {
   const w = 12;

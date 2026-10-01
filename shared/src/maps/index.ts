@@ -1,5 +1,5 @@
 import { CHECKER } from './checker';
-import { CROWNRUSH, HILLTOP, HOTPOTATO, LOGJAM, MAGMA } from './arenas';
+import { CROWNRUSH, CROWNTHIEF, HILLTOP, HOTPOTATO, LOGJAM, MAGMA } from './arenas';
 import { LAST_STAND } from './laststand';
 import { LOBBY } from './lobby';
 import { RACES } from './races';
@@ -8,7 +8,7 @@ import { TILE_TUMBLE } from './tiletumble';
 import type { MapDef } from './types';
 
 export const MAPS: Record<string, MapDef> = Object.fromEntries(
-  [LOBBY, ...RACES, SPIN_CYCLE, TILE_TUMBLE, LOGJAM, MAGMA, HILLTOP, HOTPOTATO, LAST_STAND, CHECKER, CROWNRUSH]
+  [LOBBY, ...RACES, SPIN_CYCLE, TILE_TUMBLE, LOGJAM, MAGMA, HILLTOP, CROWNTHIEF, HOTPOTATO, LAST_STAND, CHECKER, CROWNRUSH]
     .map((m) => [m.id, m]),
 );
 

@@ -131,6 +131,8 @@ export interface MapDef {
   lava?: { delay: number; speed: number; yMax: number };
   /** A sea below the course (water, or lava that rises with `lava`): its height and what it is made of. */
   sea?: { y: number; mat: 'water' | 'lava' };
+  /** Points rounds without a zone: you score while holding a crown, and others steal it by touching you. */
+  keep?: boolean;
   /** Points rounds: a scoring zone of radius `r` that moves to the next spot every `hold` seconds. */
   hill?: { r: number; hold: number; spots: Vec3[] };
 }

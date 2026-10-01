@@ -16,26 +16,52 @@ From the title screen:
 
 - **Play**: quick play. Joins an open lobby (or starts one). The match begins 25 seconds after the first
   player arrives, or 3 seconds after the lobby fills (32 players). Bots fill any quiet lobby up to 10 players.
-- **Private room**: create a room and share its 5-character code, or join a friend's code. The host chooses
-  whether bots fill empty spots, and starts the match.
+- **Private room**: create a room and share its 5-character code, or join a friend's code. The host picks the
+  number of rounds (Auto, or 3 to 8) and whether bots fill empty spots, then starts the match.
 - **Practice**: play a course on your own, offline.
-- **Customize**: suit and accent colours, patterns and hats, with a live close-up of your character.
+- **Customize**: suit and accent colours, 12 patterns and 16 hats, with a live close-up of your character.
 - **Settings**: graphics quality, camera speed, invert Y, sound effect and music volume, FPS counter.
   During a match, the cog button in the top-left corner opens the same settings, minus graphics quality.
 
-A match is 3 rounds, or 4 rounds with 12 or more players. The first rounds are races and survival
-arenas, each with a qualification cut-off. The last round is a final where the last player standing wins.
-If you are eliminated, you keep watching: switch between players with **Q** / **E** or the arrow buttons.
+A match is 3 to 6 rounds depending on the size of the lobby (private-room hosts can choose up to 8). It opens
+with a race, mixes round types in the middle and ends with a final. If you are eliminated, you keep watching:
+switch between players with **Q** / **E** or the arrow buttons.
+
+| Round type | How you get through |
+| --- | --- |
+| Race | Be among the first across the line. Falling puts you back at the last checkpoint |
+| Survival | Stay alive: fall and you are out. Includes rising lava, rolling logs and dropping tiles |
+| Zone | Score by standing in the glowing zone, which keeps moving. Top scorers qualify |
+| Crown Thief | Score while you hold a crown. Touch a holder to steal it. Top scorers qualify |
+| Bomb Tag | Some players start with a bomb. Touch someone to pass it on. Holders at zero are out |
+| Final | Last one standing wins, or first to the crown in Crown Rush |
 
 | Map | Type | What happens |
 | --- | --- | --- |
-| Tumbletop Trail | Race | Sweepers, swinging hammers, pushers, conveyors and bounce pads |
-| Bouncy Boulevard | Race | Gaps to leap, belts to choose and spinning floors to ride |
-| Windmill Heights | Race | Windmill blades, crumbling steps and bounce pads up to the summit |
+| Tumbletop Trail | Race | Sweepers, hammers, a belt climb, crumbling tiles, a turntable, boulders, pistons |
+| Bouncy Boulevard | Race | Gaps, belts, spinning discs over the void, swinging logs, stepping stones |
+| Windmill Heights | Race | A climb past windmill blades, crumbling tiles and pistons |
+| Timber Tumble | Race | Forest: stepping stones, narrow beams and logs that roll under your feet |
+| Frostbite Falls | Race | Ice sheets with sliding blocks and two long slides down the mountain |
+| Splashdown Slides | Race | Water park: three big slides, belts and meshing discs |
+| Gearworks Gauntlet | Race | Factory: turning gears to cross, pistons, hammers and windmills |
+| Lava Leap | Race | Volcano: boulders, crumbling bridges and beams over the lava |
+| Switchback Sprint | Race | A zigzag path over the void, a slide, hammers and rolling logs |
+| Starlight Steps | Race | A climb through windmills, stepping stones, a zigzag and beams |
+| Sugar Dash | Race | Gears, a zigzag, crumbling tiles, a slide and swinging logs |
 | Spin Cycle | Survival | A sweeper arm that keeps speeding up on a round island |
-| Tile Tumble | Survival | Tiles that drop soon after you touch them, over two floors |
+| Tile Tumble | Survival | Five floors of tiles that drop soon after you touch them |
+| Log Jam | Survival | Three giant logs turning in the river, faster and faster |
+| Magma Mountain | Survival | The lava is rising: climb to the summit, then outlast the sweeper |
+| Hilltop Hustle | Zone | A scoring zone that moves around an arena, with a sweeper on the hill |
+| Crown Thief | Crown Thief | Decks, ramps and bounce pads to keep the crown away from the pack |
+| Hot Potato Plaza | Bomb Tag | Pillars, walls and bounce pads to dodge around |
 | Last Stand | Final | Rings of the stage crumble from the outside in |
 | Checker Clash | Final | Squares drop in waves while wrecking balls roll by |
+| Crown Rush | Final | A short gauntlet: first to reach the crown wins the match |
+
+Race courses are built from reusable sections (`shared/src/maps/kit.ts`), so a new course is a short list of
+sections in `shared/src/maps/races.ts`.
 
 ### Controls
 
@@ -62,7 +88,7 @@ client in a few browser windows to play against yourself. Other devices on your 
 `http://<your-computer's-IP>:5173`.
 
 Handy URL options: `?quality=low|medium|high` forces a graphics preset, and `?map=<id>` opens practice on
-that map (`tumbletop`, `bouncy`, `windmill`, `spincycle`, `tiletumble`, `laststand`, `checker`).
+that map (the ids are in `shared/src/maps/`, for example `timber`, `frostbite`, `magma` or `hilltop`).
 
 `npm run build` builds both packages: the client into `client/dist`, and the server into
 `server/dist/index.js` (start it with `node server/dist/index.js`; it listens on `$PORT`, default 2567).
@@ -85,20 +111,20 @@ $env:VITE_SERVER_URL="http://localhost:2567"; npm run build:html   # Windows Pow
 | Command | What it checks |
 | --- | --- |
 | `npm run typecheck` | TypeScript across shared, server, client and tools |
-| `npm test` | 84 unit tests (Vitest): match rules and qualification cut-offs, the character physics, every map's layout, bots finishing every race course, the network protocol, the server simulation, client prediction under 40/150/300 ms of simulated lag, and a whole match played by bots from lobby to podium |
-| `npm run test:e2e` | Playwright smoke test: two browsers join the same room and each sees the other move. It starts the server and client itself. The first time, run `npx playwright install chromium` |
+| `npm test` | 151 unit tests (Vitest): match rules and round planning, the character physics, every map's layout, bots finishing every race course, each game mode played out by bots (zone, crown thief, bomb tag, rising lava, log jam, crown final), the network protocol, the server simulation, client prediction under 40/150/300 ms of simulated lag, and a whole match from lobby to podium |
+| `npm run test:e2e` | Playwright smoke test: one browser creates a private room, a second joins by code, and each sees the other move. It starts the server and client itself. The first time, run `npx playwright install chromium` |
 | `npm run loadtest` | Load test (needs a running server): 32 headless clients join one private match and play all of it with the bot AI, sending real inputs at 30 Hz. Reports the server's tick time and the bandwidth per client. Options: `--url`, `--clients`, `--seconds` |
 
-Load test results on a desktop PC, with 32 clients playing a full four-round match:
+Load test results on a desktop PC, with 32 clients playing a full six-round match:
 
 | | |
 | --- | --- |
-| Server tick time | 1.1 ms on average; worst 95th percentile 3.4 ms (10% of the 33 ms budget) |
-| Download per client | 12.2 KB/s with all 32 players on the course; 5.5 KB/s averaged over the match |
+| Server tick time | 1.2 ms on average; worst 95th percentile 3.2 ms (10% of the 33 ms budget) |
+| Download per client | 12.3 KB/s with all 32 players on the course; 6.7 KB/s averaged over the match |
 | Upload per client | 0.6 KB/s while playing |
 | Server memory | about 130 MB |
 
-Three such matches running at once on the same server each still took about 1 ms per tick.
+Three such matches running at once on the same server each took 1.2 to 1.4 ms per tick.
 
 ## Deploying to Render
 
@@ -137,7 +163,7 @@ is up. The static site never sleeps, so the title screen and practice mode alway
 
 Other free-tier limits worth knowing:
 
-- Free instances get a small share of a CPU (0.1). The load test above uses about 1 ms of CPU per tick
+- Free instances get a small share of a CPU (0.1). The load test above uses a little over 1 ms of CPU per tick
   for a full 32-player match on a desktop, so a free instance should manage about one full match at a time.
 - 750 free instance hours per month per workspace, which is enough for one always-on service.
 - Render may restart free services at any time, which ends any match in progress.
@@ -173,7 +199,7 @@ Netcode:
 
 Rendering targets 60 fps on low-end Chromebooks:
 
-- Characters are instanced: about 20 draw calls for all 32 players.
+- Characters are instanced, and only the players present and the hats actually worn are drawn.
 - Static scenery is merged into a few meshes, and textures are drawn procedurally at startup.
 - A dynamic-resolution governor lowers the render resolution as soon as frames start taking too long.
 - Three graphics presets: **Low** uses cheaper materials, no shadows and a lower resolution. **Medium**

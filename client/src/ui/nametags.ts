@@ -4,7 +4,7 @@ const _v = new THREE.Vector3();
 
 /** Floating player names, positioned in screen space. Only the nearest few are shown to keep it readable. */
 export class NameTags {
-  private readonly root: HTMLDivElement;
+  readonly root: HTMLDivElement;
   private readonly tags = new Map<number, HTMLDivElement>();
   private readonly shown = new Set<number>();
 

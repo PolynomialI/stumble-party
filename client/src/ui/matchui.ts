@@ -48,7 +48,7 @@ function goal(map: MapDef, qualify: number): string {
   switch (map.type) {
     case 'race': return `First ${qualify} qualify`;
     case 'survival': return `Last ${qualify} qualify`;
-    case 'points': return `Top ${qualify} scorers qualify`;
+    case 'points': return `${map.keep ? 'Hold a crown to score' : 'Stand in the zone to score'} · top ${qualify} qualify`;
     case 'tag': return 'Don’t hold a bomb at zero';
     case 'final': return map.finish ? 'First to the crown wins' : 'Last one standing wins';
     default: return '';
@@ -220,12 +220,14 @@ export class MatchUI {
     }
     // Tag: the bomb arriving or leaving.
     if (me && me.it !== this.lastIt) {
+      const crown = !!MAPS[v.mapId]?.keep;
       if (me.it && v.phase !== 'results') {
-        hud.showBanner('BOMB!', 'bad', 1100, 'Touch someone to pass it on');
-        sound.play('hit');
+        if (crown) hud.showBanner('CROWN!', 'good', 1100, 'Keep away from everyone');
+        else hud.showBanner('BOMB!', 'bad', 1100, 'Touch someone to pass it on');
+        sound.play(crown ? 'qualify' : 'hit');
       } else if (!me.it && v.phase === 'playing') {
-        hud.showBanner('PASSED!', 'good', 900);
-        sound.play('bounce');
+        hud.showBanner(crown ? 'STOLEN!' : 'PASSED!', crown ? 'bad' : 'good', 900);
+        sound.play(crown ? 'hit' : 'bounce');
       }
       this.lastIt = me.it;
     }
@@ -252,7 +254,7 @@ export class MatchUI {
       case 'points': {
         if (!me || me.status !== STATUS.playing) return `Top ${v.qualify}`;
         const rank = 1 + running.filter((p) => p.points > me.points).length;
-        return `${me.points} pts · #${rank} · top ${v.qualify}`;
+        return `${me.it ? '👑 ' : ''}${me.points} pts · #${rank} · top ${v.qualify}`;
       }
       case 'tag':
         return me?.it ? 'You have a bomb!' : `${running.filter((p) => p.it).length} bombs`;

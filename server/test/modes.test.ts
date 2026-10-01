@@ -62,6 +62,28 @@ describe('game modes', () => {
     expect(Math.min(...through.map((x) => x.p.points))).toBeGreaterThanOrEqual(Math.max(...out.map((x) => x.p.points)));
   }, 120_000);
 
+  it('crown thief: holding a crown scores, crowns get stolen, the top scorers go through', () => {
+    const { state, run, players } = play([
+      { mapId: 'crownthief', type: 'points', qualify: 4 },
+      { mapId: 'laststand', type: 'final', qualify: 1 },
+    ]);
+    const holders = () => players().filter((x) => x.p.it).map((x) => x.id).sort().join();
+    expect(players().filter((x) => x.p.it).length).toBe(3);
+    let steals = 0;
+    let prev = holders();
+    run(200 * 30, () => {
+      if (state.phase === 'playing' && holders() !== prev) { steals++; prev = holders(); }
+      return state.phase === 'results';
+    });
+    expect(steals).toBeGreaterThan(2);
+    const all = players();
+    const through = all.filter((x) => x.p.status === ST_QUALIFIED);
+    const out = all.filter((x) => x.p.status === ST_ELIMINATED);
+    expect(through.length).toBe(4);
+    expect(Math.max(...through.map((x) => x.p.points))).toBeGreaterThan(50);
+    expect(Math.min(...through.map((x) => x.p.points))).toBeGreaterThanOrEqual(Math.max(...out.map((x) => x.p.points)));
+  }, 120_000);
+
   it('tag rounds: as many bombs as players to knock out, bombs change hands, holders go out', () => {
     const { state, run, players } = play([
       { mapId: 'hotpotato', type: 'tag', qualify: 6 },

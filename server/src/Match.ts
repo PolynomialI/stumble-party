@@ -206,7 +206,11 @@ export class Match {
     this.zoneTicks.clear();
     this.bombs.clear();
     // Tag: as many bombs as players who must go out. Whoever holds one when the clock stops is eliminated.
-    const carriers = new Set(r.type === 'tag' ? order.slice(0, Math.max(1, order.length - this.target)) : []);
+    // Crown Thief works the same way round: one crown for every four players, and holding one scores.
+    const carriers = new Set(
+      r.type === 'tag' ? order.slice(0, Math.max(1, order.length - this.target))
+        : map.keep ? order.slice(0, Math.max(1, Math.round(order.length / 4))) : [],
+    );
     this.state.players.forEach((p, id) => {
       p.place = 0;
       p.points = 0;
@@ -268,7 +272,8 @@ export class Match {
 
   /** Tag: a bomb changes hands when its carrier touches someone who has none. */
   private onTouch(a: SimPlayer, b: SimPlayer) {
-    if (this.state.phase !== 'playing' || this.plan[this.roundIndex]?.type !== 'tag') return;
+    const passing = this.plan[this.roundIndex]?.type === 'tag' || this.sim.map.keep;
+    if (this.state.phase !== 'playing' || !passing) return;
     const pa = this.player(a.id), pb = this.player(b.id);
     if (!pa || !pb || pa.it === pb.it || pa.status !== ST_PLAYING || pb.status !== ST_PLAYING) return;
     const [from, to, giver, taker] = pa.it ? [a.id, b.id, pa, pb] : [b.id, a.id, pb, pa];
@@ -284,14 +289,19 @@ export class Match {
   private playModes(r: RoundPlan, running: string[]) {
     if (r.type === 'points') {
       const t = this.sim.worldTick * DT;
+      const keep = !!this.sim.map.keep;
       for (const id of running) {
         const s = this.sim.players.get(id)?.state;
-        if (!s || !onHill(this.sim.map, t, s.px, s.py - CHAR.centerHeight, s.pz)) continue;
+        const scoring = keep ? this.player(id)!.it : !!s && onHill(this.sim.map, t, s.px, s.py - CHAR.centerHeight, s.pz);
+        if (!scoring) continue;
         const n = (this.zoneTicks.get(id) ?? 0) + 1;
         this.zoneTicks.set(id, n);
         if (n % 3 === 0) this.player(id)!.points = n / 3;
       }
-    } else if (r.type === 'tag') {
+    }
+    if (r.type === 'tag' || this.sim.map.keep) {
+      // Bomb carriers chase and everyone else runs; with crowns it is the other way round.
+      const hunted = !!this.sim.map.keep;
       for (const id of running) {
         const me = this.sim.players.get(id);
         if (!me?.bot) continue;
@@ -303,7 +313,8 @@ export class Match {
           const d = Math.hypot(o.state.px - me.state.px, o.state.pz - me.state.pz);
           if (d < bestD) { bestD = d; best = o; }
         }
-        me.bot.goal = best && (it || bestD < 12) ? { x: best.state.px, z: best.state.pz, flee: !it } : null;
+        const chase = it !== hunted;
+        me.bot.goal = best && (chase || bestD < 12) ? { x: best.state.px, z: best.state.pz, flee: !chase } : null;
       }
     }
   }

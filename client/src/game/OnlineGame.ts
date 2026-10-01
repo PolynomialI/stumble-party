@@ -206,6 +206,8 @@ export class OnlineGame {
     this.view = new MapView(map, this.r.mats, this.r.profile);
     this.r.scene.add(this.view.group);
     this.env = new Environment(this.r.scene, this.r.renderer, map.theme, this.r.profile, map.killY);
+    this.chars.carry = map.keep ? 'crown' : 'bomb';
+    this.tags.root.classList.toggle('crowns', !!map.keep);
     this.tracks.clear();
     this.ownSeenAt = 0;
     for (let s = 0; s < MAX_PLAYERS; s++) this.chars.hide(s);

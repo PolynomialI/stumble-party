@@ -1,8 +1,8 @@
 import {
   beams, beltClimb, belts, boulders, checkpoint, discs, finish, gaps, hammers, iceRink, logs, padJump, pushers,
-  raceMap, ramp, run, slide, spinner, start, stones, sweepers, swingLogs, tileBridge, windmills,
+  raceMap, ramp, run, slide, spinner, start, stones, sweepers, swingLogs, tileBridge, windmills, zigzag,
 } from './kit';
-import { CANDY, FOREST, FROST, LAGOON, SPLASH, SUNNY, VOLCANO, WORKS } from './themes';
+import { CANDY, FOREST, FROST, LAGOON, SPLASH, SUNNY, SUNSET, TWILIGHT, VOLCANO, WORKS } from './themes';
 import type { MapDef } from './types';
 
 /** Sweepers, hammers, a belt climb, crumbling tiles, a turntable, boulders and pistons. */
@@ -192,4 +192,72 @@ export const LAVALEAP: MapDef = {
   sea: { y: -9, mat: 'lava' },
 };
 
-export const RACES = [TUMBLETOP, BOUNCY, WINDMILL, TIMBER, FROSTBITE, SPLASHDOWN, GEARWORKS, LAVALEAP];
+/** Sunset: a zigzag over the void, a slide, hammers, belts and rolling logs. */
+export const SWITCHBACK: MapDef = raceMap({
+  id: 'switchback', name: 'Switchback Sprint', blurb: 'Mind the corners!',
+  theme: SUNSET, prop: 'lantern', timeLimit: 210,
+  build(c) {
+    start(c);
+    zigzag(c, 4);
+    checkpoint(c);
+    slide(c, 6, 28);
+    hammers(c, 3);
+    checkpoint(c);
+    zigzag(c, 5);
+    checkpoint(c);
+    belts(c, 21);
+    logs(c, 2);
+    checkpoint(c);
+    sweepers(c, 2);
+    finish(c);
+  },
+});
+
+/** Twilight: a climb through windmills, stepping stones, a zigzag and beams. */
+export const STARLIGHT: MapDef = raceMap({
+  id: 'starlight', name: 'Starlight Steps', blurb: 'Climb to the stars!',
+  theme: TWILIGHT, prop: 'crystal', timeLimit: 220,
+  build(c) {
+    start(c);
+    ramp(c, 3, 10);
+    windmills(c, 2);
+    checkpoint(c);
+    stones(c, 5);
+    checkpoint(c);
+    ramp(c, 3, 10);
+    zigzag(c, 4);
+    checkpoint(c);
+    padJump(c);
+    boulders(c, 2);
+    checkpoint(c);
+    beams(c, 14);
+    run(c, 6);
+    discs(c, 2, 2.5);
+    finish(c);
+  },
+});
+
+/** Candy: gears, a zigzag, crumbling tiles, a slide and swinging logs. */
+export const SUGARDASH: MapDef = raceMap({
+  id: 'sugardash', name: 'Sugar Dash', blurb: 'Sweet, sticky and fast!',
+  theme: CANDY, prop: 'lolly', timeLimit: 210,
+  build(c) {
+    start(c);
+    discs(c, 3, -0.4);
+    checkpoint(c);
+    zigzag(c, 4);
+    checkpoint(c);
+    tileBridge(c, 7);
+    slide(c, 7, 30);
+    checkpoint(c);
+    swingLogs(c, 2);
+    pushers(c, 4);
+    checkpoint(c);
+    gaps(c, 3);
+    finish(c);
+  },
+});
+
+export const RACES = [
+  TUMBLETOP, BOUNCY, WINDMILL, TIMBER, FROSTBITE, SPLASHDOWN, GEARWORKS, LAVALEAP, SWITCHBACK, STARLIGHT, SUGARDASH,
+];

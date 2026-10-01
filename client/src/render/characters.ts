@@ -55,8 +55,12 @@ function lathe(profile: [number, number][], segments: number) {
   return g;
 }
 
+/** Segment multiplier for the small round parts: fewer on low quality, where they are a few pixels across. */
+let detail = 1;
+
 function sphere(r: number, sx: number, sy: number, sz: number, seg: number) {
-  const g = new THREE.SphereGeometry(r, seg, Math.max(6, Math.round(seg * 0.66)));
+  seg = Math.max(6, Math.round(seg * detail));
+  const g = new THREE.SphereGeometry(r, seg, Math.max(5, Math.round(seg * 0.66)));
   g.scale(sx, sy, sz);
   return g;
 }
@@ -125,6 +129,7 @@ const HAT_DEFS: HatPiece[][] = [
 
 function buildParts(q: QualityProfile): Record<string, PartSpec> {
   const seg = q.cylinderSegments;
+  detail = q.pbr ? 1 : 0.6;
   const body = lathe([
     [0, 0.13], [0.26, 0.15], [0.37, 0.22], [0.415, 0.34], [0.415, 0.48], [0.39, 0.63], [0.34, 0.77],
     [0.27, 0.89], [0.17, 0.97], [0, 1.0],
@@ -155,6 +160,14 @@ function buildParts(q: QualityProfile): Record<string, PartSpec> {
   const collar = new THREE.TorusGeometry(0.255, 0.05, 10, Math.max(20, seg));
   collar.rotateX(Math.PI / 2);
   const arc = new THREE.TorusGeometry(0.43, 0.035, 8, 20, Math.PI);
+  const prize = mergeClean([
+    roundedCylinder(0.3, 0.2, 0.03, 20, 1),
+    ...[0, 1, 2, 3, 4].map((i) => {
+      const g = new THREE.ConeGeometry(0.075, 0.24, 8);
+      g.translate(Math.sin((i / 5) * Math.PI * 2) * 0.25, 0.2, Math.cos((i / 5) * Math.PI * 2) * 0.25);
+      return g;
+    }),
+  ]);
 
   return {
     body: { geo: body, color: 'main', perPlayer: 1, shadow: true },
@@ -202,6 +215,8 @@ function buildParts(q: QualityProfile): Record<string, PartSpec> {
     // Tag rounds: a bomb bobbing over the carrier's head.
     bomb: { geo: sphere(0.3, 1, 1, 1, 16), color: DARK, roughness: 0.25, perPlayer: 1 },
     spark: { geo: sphere(0.09, 1, 1, 1, 8), color: 0xffb300, basic: true, perPlayer: 1 },
+    // Crown Thief: the crown floating over whoever holds it.
+    prize: { geo: prize, color: GOLD, emissive: 0.45, roughness: 0.15, perPlayer: 1 },
   };
 }
 
@@ -310,6 +325,8 @@ class Anim {
   propeller = Math.random() * 6;
   visible = false;
   look: Look | null = null;
+  main = new THREE.Color();
+  accent = new THREE.Color();
   /** 0 = animated, 1 = fully limp. */
   rag = 0;
   limb = new Float32Array(L.Count);
@@ -328,6 +345,8 @@ export class CharacterRenderer {
   private readonly color2Attr: THREE.InstancedBufferAttribute;
   private readonly shadowMesh: THREE.InstancedMesh | null;
   private time = 0;
+  /** What a player with `it` set carries over their head this round. */
+  carry: 'bomb' | 'crown' = 'bomb';
 
   constructor(mats: MaterialLib, profile: QualityProfile) {
     this.specs = buildParts(profile);
@@ -410,10 +429,11 @@ export class CharacterRenderer {
   setLook(slot: number, look: Look) {
     const a = this.anims[slot];
     a.look = look;
-    const main = new THREE.Color(PALETTE[look.body].hex);
-    const accent = new THREE.Color(PALETTE[look.accent].hex);
+    const main = a.main.set(PALETTE[look.body].hex);
+    const accent = a.accent.set(PALETTE[look.accent].hex);
     for (const [name, spec] of Object.entries(this.specs)) {
-      if (typeof spec.color === 'number') continue;
+      // Hats are coloured as they are drawn (their instances are packed, not one per slot).
+      if (typeof spec.color === 'number' || !CORE_PARTS.has(name)) continue;
       const mesh = this.meshes.get(name)!;
       const c = spec.color === 'main' ? main : accent;
       for (let k = 0; k < spec.perPlayer; k++) mesh.setColorAt(slot * spec.perPlayer + k, c);
@@ -431,6 +451,7 @@ export class CharacterRenderer {
     if (!a.visible) return;
     a.visible = false;
     for (const [name, spec] of Object.entries(this.specs)) {
+      if (!CORE_PARTS.has(name)) continue;
       const mesh = this.meshes.get(name)!;
       for (let k = 0; k < spec.perPlayer; k++) mesh.setMatrixAt(slot * spec.perPlayer + k, _zero);
       mesh.instanceMatrix.needsUpdate = true;
@@ -438,7 +459,12 @@ export class CharacterRenderer {
     this.shadowMesh?.setMatrixAt(slot, _zero);
   }
 
+  /**
+   * Starts a frame. Instance counts are rebuilt as characters are posed, so the GPU only processes the players
+   * who are present and the hats actually worn, not all 32 slots of every part.
+   */
   beginFrame(dt: number) {
+    for (const mesh of this.meshes.values()) mesh.count = 0;
     this.time += dt;
   }
 
@@ -652,9 +678,23 @@ export class CharacterRenderer {
       .multiply(_tmp.makeTranslation(0, -0.8, 0))
       .multiply(_tmp.makeScale(sxz, sy, sxz));
 
+    // Body parts live at their slot's index; the count covers every slot up to the highest one present.
     const set = (name: string, k: number, m: THREE.Matrix4) => {
       const mesh = this.meshes.get(name)!;
-      mesh.setMatrixAt(slot * this.specs[name].perPlayer + k, m);
+      const i = slot * this.specs[name].perPlayer + k;
+      mesh.setMatrixAt(i, m);
+      if (mesh.count <= i) mesh.count = i + 1;
+    };
+    // Hats and carried items are packed: each one drawn takes the next free instance.
+    const add = (name: string, m: THREE.Matrix4) => {
+      const mesh = this.meshes.get(name)!;
+      const i = mesh.count++;
+      mesh.setMatrixAt(i, m);
+      const color = this.specs[name].color;
+      if (typeof color !== 'number') {
+        mesh.setColorAt(i, color === 'main' ? a.main : a.accent);
+        mesh.instanceColor!.needsUpdate = true;
+      }
     };
 
     set('body', 0, _m.copy(_root).multiply(_tmp.makeTranslation(0, r[R.Bob], 0)));
@@ -722,29 +762,23 @@ export class CharacterRenderer {
 
     // Hat.
     const hat = HAT_DEFS[look.hat] ?? [];
-    const used = new Map<string, number>();
-    for (const [name] of this.meshes) {
-      if (!this.isHatPart(name)) continue;
-      const spec = this.specs[name];
-      for (let k = 0; k < spec.perPlayer; k++) set(name, k, _zero);
-    }
     a.propeller += dt * (10 + Math.hypot(p.vx, p.vz) * 3);
     for (const piece of hat) {
-      const k = used.get(piece.part) ?? 0;
-      used.set(piece.part, k + 1);
       _m.copy(_head).multiply(_tmp.makeTranslation(...piece.pos));
       if (piece.rot) _m.multiply(_tmp.makeRotationFromEuler(_e.set(...piece.rot)));
       if (piece.spin) _m.multiply(_tmp.makeRotationY(a.propeller));
       if (piece.scale) _m.multiply(_tmp.makeScale(piece.scale, piece.scale, piece.scale));
-      set(piece.part, k, _m);
+      add(piece.part, _m);
     }
 
-    if (p.it) {
+    if (p.it && this.carry === 'crown') {
+      add('prize', _m.makeTranslation(p.x, p.y + 2.35 + Math.sin(this.time * 4) * 0.07, p.z).multiply(_tmp.makeRotationY(this.time * 2.2)));
+    } else if (p.it) {
       const bob = Math.sin(this.time * 7) * 0.06;
       const pulse = 1 + Math.sin(this.time * 14) * 0.08;
-      set('bomb', 0, _m.makeTranslation(p.x, p.y + 2.45 + bob, p.z).multiply(_tmp.makeScale(pulse, pulse, pulse)));
+      add('bomb', _m.makeTranslation(p.x, p.y + 2.45 + bob, p.z).multiply(_tmp.makeScale(pulse, pulse, pulse)));
       const fl = 0.7 + Math.random() * 0.8;
-      set('spark', 0, _m.makeTranslation(p.x + 0.12, p.y + 2.8 + bob, p.z).multiply(_tmp.makeScale(fl, fl, fl)));
+      add('spark', _m.makeTranslation(p.x + 0.12, p.y + 2.8 + bob, p.z).multiply(_tmp.makeScale(fl, fl, fl)));
     }
 
     for (const mesh of this.meshes.values()) mesh.instanceMatrix.needsUpdate = true;
@@ -760,10 +794,6 @@ export class CharacterRenderer {
       }
       this.shadowMesh.instanceMatrix.needsUpdate = true;
     }
-  }
-
-  private isHatPart(name: string) {
-    return !CORE_PARTS.has(name);
   }
 
   dispose() {

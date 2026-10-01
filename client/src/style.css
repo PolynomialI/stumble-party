@@ -427,6 +427,8 @@ html, body {
 .nametag.self { background: rgba(255, 111, 174, 0.85); }
 .nametag.hot { background: #e5263c; }
 .nametag.hot::before { content: "💣 "; }
+.crowns .nametag.hot { background: #e0a100; }
+.crowns .nametag.hot::before { content: "👑 "; }
 
 /* Menu: private rooms */
 .btn-row { display: flex; gap: 10px; }

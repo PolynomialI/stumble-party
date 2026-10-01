@@ -55,6 +55,43 @@ export const HILLTOP: MapDef = {
   hill: { r: 3.8, hold: 11, spots: [[0, MOUND, 0], [11.5, 0, 4], [-9, 0, -9], [-4, 0, 13], [12, 0, -8], [0, MOUND, 0], [-13, 0, 3]] },
 };
 
+// ------------------------------------------------------------------------------------ crown thief (points)
+
+/** Points: hold a crown to score. Touch a crown holder to steal it. */
+export const CROWNTHIEF: MapDef = {
+  id: 'crownthief',
+  name: 'Crown Thief',
+  type: 'points',
+  blurb: 'Hold the crown to score!',
+  timeLimit: 70,
+  killY: -12,
+  theme: SUNSET,
+  spawn: { pos: [0, 0, -12.5], yaw: 0, cols: 8, spacing: 1.3 },
+  pieces: [
+    cyl([0, -0.5, 0], 42, 1, 'floor', { tex: 'grid', round: 0.25 }),
+    ...Array.from({ length: 26 }, (_, i) => {
+      const a = ((i + 0.5) / 26) * Math.PI * 2;
+      return box([Math.sin(a) * 20.8, 0.5, Math.cos(a) * 20.8], [5.2, 1, 0.5], 'trim', { rot: [0, a, 0], round: 0.16 });
+    }),
+    // Two raised decks joined by ramps, and pads to hop between them.
+    ...[-1, 1].flatMap((s) => [
+      box([s * 9, 0.75, 4], [7, 1.5, 9], 'floorAlt', { tex: 'grid' }),
+      wedge([s * 9, 0.75, -3.5], [5, 1.5, 6], 'path'),
+      cyl([s * 2.6, 0.12, 6], 2.4, 0.24, 'bounce', { surface: 'bounce', power: 12, dir: [s, 0, 0], round: 0.08 }),
+      deco(cyl([s * 2.6, 0.07, 6], 2.8, 0.14, 'white', { round: 0.06 })),
+      cyl([s * 14.5, 1.4, -8], 2, 2.8, 'wall', { round: 0.4 }),
+    ]),
+    cyl([0, 1.2, 14], 2.4, 2.4, 'accentAlt', { round: 0.4 }),
+    deco(cyl([0, -3.4, 0], 36, 5, 'rock', { round: 1 })),
+    deco(ball([0, -13, 0], 25, 'rock')),
+  ],
+  obstacles: [],
+  tiles: [],
+  checkpoints: [],
+  bot: { arena: { center: [0, 0, 0], radius: 18.5 } },
+  keep: true,
+};
+
 // ------------------------------------------------------------------------------------ bomb tag
 
 /** Tag: whoever holds a bomb when the clock stops is out. Pass it on by touching someone. */
