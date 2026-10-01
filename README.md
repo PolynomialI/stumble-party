@@ -8,6 +8,8 @@ touchscreens.
 Everything you see and hear (characters, maps, textures, sound effects and music) is original and made
 procedurally in code. See [CREDITS.md](CREDITS.md).
 
+**Play it: https://stumble-party.onrender.com** (hosted on Render; share this link with friends).
+
 ## Playing
 
 From the title screen:
@@ -69,13 +71,13 @@ Set `VITE_SERVER_URL` when building the client to point it at a server elsewhere
 ### One-file version
 
 `npm run build:html` writes **`play/stumble-party.html`**: the whole game client in a single file that opens
-straight from disk with a double-click, no web server needed. Practice, Customize and Settings work on
-their own. Play and private rooms need a game server. By default the file looks for one on the same computer
-(start it with `npm run dev`). To point it at a deployed server instead, build it with that server's address:
+straight from disk with a double-click, no web server needed. Online play uses the game server deployed on
+Render (its address is in `client/.env.single`), so nobody has to host anything. To build a copy that uses a
+server on your own computer instead (started with `npm run dev`):
 
 ```sh
-VITE_SERVER_URL=https://your-server.onrender.com npm run build:html     # macOS / Linux
-$env:VITE_SERVER_URL="https://your-server.onrender.com"; npm run build:html   # Windows PowerShell
+VITE_SERVER_URL=http://localhost:2567 npm run build:html     # macOS / Linux
+$env:VITE_SERVER_URL="http://localhost:2567"; npm run build:html   # Windows PowerShell
 ```
 
 ## Testing
