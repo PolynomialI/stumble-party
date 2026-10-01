@@ -18,7 +18,8 @@ const server = new Server({
       next();
     });
     app.get('/health', (_req, res) => {
-      res.json({ ok: true, uptime: Math.round((Date.now() - startedAt) / 1000) });
+      // The commit lets a deploy be verified from outside (Render sets RENDER_GIT_COMMIT).
+      res.json({ ok: true, uptime: Math.round((Date.now() - startedAt) / 1000), commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? 'dev' });
     });
     app.get('/metrics', (_req, res) => {
       const mem = process.memoryUsage();

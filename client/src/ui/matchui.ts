@@ -72,6 +72,8 @@ export class MatchUI {
   private resultsKey = '';
   private podiumKey = '';
   private nextConfetti = 0;
+  /** The rounds setting we last asked for, until the server confirms it. */
+  private roundsSent: number | null = null;
   private readonly onKey = (e: KeyboardEvent) => {
     if (this.game.ownActive) return;
     if (e.code === 'KeyQ') this.game.cycleSpectate(-1);
@@ -106,8 +108,11 @@ export class MatchUI {
       if (t.dataset.act === 'bots') this.room.send('bots', !v.fillBots);
       if (t.dataset.act === 'copy') void navigator.clipboard?.writeText(v.code).catch(() => {});
       if (t.dataset.act === 'rounds') {
-        // Auto, then 3 up to the maximum, then back to Auto.
-        const next = v.roundsWanted === 0 ? 3 : v.roundsWanted >= MAX_ROUNDS ? 0 : v.roundsWanted + 1;
+        // Auto, then 3 up to the maximum, then back to Auto. Count from our last click, not the synced value,
+        // which lags a moment: quick taps should each move on one step.
+        const now = this.roundsSent ?? v.roundsWanted;
+        const next = now === 0 ? 3 : now >= MAX_ROUNDS ? 0 : now + 1;
+        this.roundsSent = next;
         this.room.send('rounds', next);
       }
     });
@@ -273,6 +278,7 @@ export class MatchUI {
     if (key === this.lobbyKey) return;
     this.lobbyKey = key;
     this.lobby.className = 'lobby-card private';
+    if (v.roundsWanted === this.roundsSent) this.roundsSent = null;
     const rounds = v.roundsWanted === 0 ? 'Auto' : String(v.roundsWanted);
     this.lobby.innerHTML = `
       <button class="room-code" data-act="copy" title="Copy code">${esc(v.code)}</button>
