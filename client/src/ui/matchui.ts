@@ -1,5 +1,6 @@
 import type { Room } from '@colyseus/sdk';
 import { MAPS, STATUS, TICK_RATE } from '@sp/shared';
+import { sound } from '../audio/sound';
 import type { OnlineGame } from '../game/OnlineGame';
 
 interface PlayerView {
@@ -53,6 +54,7 @@ export class MatchUI {
   private lobbyKey = '';
   private resultsKey = '';
   private podiumKey = '';
+  private nextConfetti = 0;
   private readonly onKey = (e: KeyboardEvent) => {
     if (this.game.ownActive) return;
     if (e.code === 'KeyQ') this.game.cycleSpectate(-1);
@@ -144,12 +146,18 @@ export class MatchUI {
       case 'countdown': {
         hud.setTimer(null);
         const n = left === null ? 0 : Math.ceil(left);
-        if (n !== this.lastCount && n > 0 && n <= 3) hud.showBanner(String(n), 'count', 900);
+        if (n !== this.lastCount && n > 0 && n <= 3) {
+          hud.showBanner(String(n), 'count', 900);
+          sound.play('tick');
+        }
         this.lastCount = n;
         break;
       }
       case 'playing': {
-        if (phaseChanged) hud.showBanner('GO!', 'go', 900);
+        if (phaseChanged) {
+          hud.showBanner('GO!', 'go', 900);
+          sound.play('go');
+        }
         hud.setTimer(left);
         const map = MAPS[v.mapId];
         const running = v.players.filter((p) => p.status === STATUS.playing).length;
@@ -166,8 +174,15 @@ export class MatchUI {
       case 'podium':
         hud.setTimer(null);
         hud.setStatus('');
-        if (phaseChanged) this.game.facePodium();
+        if (phaseChanged) {
+          this.game.facePodium();
+          if (v.winner) sound.play('win');
+        }
         this.renderPodium(v);
+        // Keep the confetti coming over the champion (they appear once the stage map has loaded).
+        if (v.winner && performance.now() > this.nextConfetti && this.game.celebrate(v.winner, 70)) {
+          this.nextConfetti = performance.now() + 1300;
+        }
         break;
     }
 
@@ -175,8 +190,11 @@ export class MatchUI {
     if (me && me.status !== this.lastStatus) {
       if (this.lastStatus === STATUS.playing && me.status === STATUS.qualified && v.phase === 'playing') {
         hud.showBanner('QUALIFIED!', 'good', 1800, me.place ? `You finished #${me.place}` : '');
+        sound.play('qualify');
+        this.game.celebrate(me.id, 110);
       } else if (this.lastStatus === STATUS.playing && me.status === STATUS.eliminated && v.phase === 'playing') {
         hud.showBanner('ELIMINATED', 'bad', 2200, 'Keep watching, or press ✕ to leave');
+        sound.play('eliminated');
       }
       this.lastStatus = me.status;
     }

@@ -18,6 +18,8 @@ export interface PredictorHost {
   viewTick(): number;
   /** Round-trip time in ticks. */
   rttTicks(): number;
+  /** Effect flags (FX_*) of a freshly predicted tick; never called for replays. */
+  fx?(bits: number): void;
   /** Called after the prediction jumped to a new timeline (first sync, stalls, map changes). */
   resynced?(): void;
 }
@@ -100,6 +102,7 @@ export class Predictor {
     this.prev.copyFrom(this.own);
     this.simulate(k, cmd);
     this.predTick = k;
+    if (this.own.fx) this.host.fx?.(this.own.fx);
   }
 
   private simulate(k: number, cmd: InputCmd) {

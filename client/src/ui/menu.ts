@@ -7,7 +7,14 @@ export interface MenuActions {
   joinCode(code: string): void;
   practice(): void;
   rename(name: string): void;
+  customize(): void;
+  settings(): void;
 }
+
+/** Cog icon (inline SVG, no icon font to load). */
+export const GEAR_SVG = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><g fill="currentColor">${
+  [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<rect x="10.2" y="1.6" width="3.6" height="4.4" rx="0.9" transform="rotate(${a} 12 12)"/>`).join('')
+}</g><circle cx="12" cy="12" r="5.6" fill="none" stroke="currentColor" stroke-width="4.4"/></svg>`;
 
 /** Title screen over the live 3D island. */
 export class Menu {
@@ -40,6 +47,10 @@ export class Menu {
             <button class="btn btn-alt" data-act="join">Join</button>
           </div>
         </div>
+        <div class="btn-row">
+          <button class="btn btn-pink" data-act="customize">Customize</button>
+          <button class="btn btn-light" data-act="settings">${GEAR_SVG}Settings</button>
+        </div>
         <p class="menu-hint">WASD / arrows move · Space jump · Shift dive · 1–4 emotes</p>
       </div>`;
     this.nameInput = this.root.querySelector('.name-input')!;
@@ -71,6 +82,8 @@ export class Menu {
       if (!this.privatePanel.classList.contains('hidden')) this.codeInput.focus();
     });
     on('create', () => actions.createPrivate(bots.checked));
+    on('customize', () => actions.customize());
+    on('settings', () => actions.settings());
     on('join', join);
     parent.appendChild(this.root);
   }

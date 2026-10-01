@@ -6,8 +6,11 @@ import type { Input } from './input/Input';
 import { createPrivate, joinByCode, quickPlay, waitForServer } from './net/connection';
 import { loadProfile, saveProfile, type Profile } from './profile';
 import type { GameRenderer } from './render/Renderer';
+import type { Settings } from './settings';
+import { Customizer } from './ui/customize';
 import { MatchUI } from './ui/matchui';
-import { Menu, Overlay } from './ui/menu';
+import { GEAR_SVG, Menu, Overlay } from './ui/menu';
+import { SettingsPanel } from './ui/settings';
 
 type Game = PracticeGame | OnlineGame;
 type Join = { kind: 'quick' } | { kind: 'create'; fillBots: boolean } | { kind: 'code'; code: string };
@@ -19,10 +22,14 @@ export class App {
   private matchUi: MatchUI | null = null;
   private readonly menu: Menu;
   private readonly overlay: Overlay;
+  private readonly customizer: Customizer;
+  private readonly settings: SettingsPanel;
   private readonly leaveBtn: HTMLButtonElement;
+  private readonly gearBtn: HTMLButtonElement;
   private cancel: AbortController | null = null;
 
-  constructor(private readonly r: GameRenderer, private readonly input: Input, private readonly ui: HTMLElement) {
+  constructor(private readonly r: GameRenderer, private readonly input: Input, private readonly ui: HTMLElement,
+    settings: Settings, applySettings: (s: Settings, reload: boolean) => void) {
     this.profile = loadProfile();
     this.menu = new Menu(ui, this.profile, {
       play: () => void this.goOnline({ kind: 'quick' }),
@@ -33,15 +40,38 @@ export class App {
         this.profile.name = name;
         saveProfile(this.profile);
       },
+      customize: () => this.customize(true),
+      settings: () => this.settings.show(true),
     });
+    this.customizer = new Customizer(ui, this.profile.look, (look) => {
+      this.profile.look = look;
+      saveProfile(this.profile);
+      if (this.game instanceof PracticeGame) this.game.setLook(look);
+    }, () => this.customize(false));
     this.overlay = new Overlay(ui);
     this.leaveBtn = document.createElement('button');
-    this.leaveBtn.className = 'btn-leave hidden';
+    this.leaveBtn.className = 'btn-corner hidden';
     this.leaveBtn.setAttribute('aria-label', 'Leave');
     this.leaveBtn.textContent = '✕';
     this.leaveBtn.addEventListener('click', () => this.showMenu());
-    ui.appendChild(this.leaveBtn);
+    this.gearBtn = document.createElement('button');
+    this.gearBtn.className = 'btn-corner btn-gear hidden';
+    this.gearBtn.setAttribute('aria-label', 'Settings');
+    this.gearBtn.innerHTML = GEAR_SVG;
+    this.gearBtn.addEventListener('click', () => {
+      if (document.pointerLockElement) document.exitPointerLock();
+      this.settings.show(true, false);
+    });
+    ui.append(this.leaveBtn, this.gearBtn);
+    this.settings = new SettingsPanel(ui, settings, applySettings);
     this.showMenu();
+  }
+
+  /** Opens/closes the outfit editor, with the title-screen camera swinging round to the character's face. */
+  private customize(on: boolean) {
+    this.menu.show(!on);
+    this.customizer.show(on, this.profile.look);
+    if (this.game instanceof PracticeGame) this.game.setCloseup(on);
   }
 
   private setGame(g: Game | null) {
@@ -50,7 +80,9 @@ export class App {
     if (this.game instanceof OnlineGame) this.game.room.leave().catch(() => {});
     this.game?.dispose();
     this.game = g;
-    this.leaveBtn.classList.toggle('hidden', !g || (g instanceof PracticeGame && g.attract));
+    const inGame = !!g && !(g instanceof PracticeGame && g.attract);
+    this.leaveBtn.classList.toggle('hidden', !inGame);
+    this.gearBtn.classList.toggle('hidden', !inGame);
   }
 
   showMenu() {

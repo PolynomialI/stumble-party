@@ -7,6 +7,7 @@ import { normalizeAttributes, pieceGeometry } from './geometry';
 import type { MaterialLib, ToyOptions } from './materials';
 import type { QualityProfile } from './quality';
 import { TEX_SCALE } from './textures';
+import { Decor } from './decor';
 
 const DEFAULT_TEX: Partial<Record<MatKey, Tex>> = {
   floor: 'grid', floorAlt: 'grid', hazard: 'stripes', conveyor: 'chevron', finish: 'checker',
@@ -58,11 +59,14 @@ export class MapView {
   private readonly belts: Belt[] = [];
   private readonly pose = newPose();
   private readonly ownedMaterials: THREE.Material[] = [];
+  private readonly decor: Decor;
 
   constructor(readonly map: MapDef, private readonly mats: MaterialLib, private readonly profile: QualityProfile) {
     this.buildStatics();
     this.buildObstacles();
     this.buildTiles();
+    this.decor = new Decor(map, mats, profile);
+    this.group.add(this.decor.group);
   }
 
   private material(p: Piece): THREE.Material {
@@ -191,6 +195,7 @@ export class MapView {
       o.obj.quaternion.set(this.pose.rot[0], this.pose.rot[1], this.pose.rot[2], this.pose.rot[3]);
     }
     for (const b of this.belts) b.tex.offset.y -= b.speed * dt;
+    this.decor.update(dt);
     if (pw) this.updateTiles(tick, pw);
   }
 
@@ -251,6 +256,7 @@ export class MapView {
   }
 
   dispose() {
+    this.decor.dispose();
     this.group.traverse((o) => {
       if (o instanceof THREE.Mesh) o.geometry.dispose();
     });

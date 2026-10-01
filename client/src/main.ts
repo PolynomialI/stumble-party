@@ -1,12 +1,13 @@
 import './style.css';
 import { GAME_TITLE, HATS, PATTERNS, getMap, initPhysics } from '@sp/shared';
 import { App } from './app';
+import { sound } from './audio/sound';
 import { OnlineGame } from './game/OnlineGame';
 import { PracticeGame } from './game/PracticeGame';
 import { Input } from './input/Input';
 import { TouchControls } from './input/TouchControls';
 import { GameRenderer } from './render/Renderer';
-import { loadQuality } from './render/quality';
+import { loadSettings, saveSettings, type Settings } from './settings';
 
 async function boot() {
   document.title = GAME_TITLE;
@@ -15,13 +16,33 @@ async function boot() {
   await initPhysics();
   const params = new URLSearchParams(location.search);
   const forced = params.get('quality');
-  const r = new GameRenderer(canvas, forced === 'low' || forced === 'medium' || forced === 'high' ? forced : loadQuality());
+  const settings = loadSettings();
+  const r = new GameRenderer(canvas, forced === 'low' || forced === 'medium' || forced === 'high' ? forced : settings.quality);
   const input = new Input(canvas);
-  const touch = new TouchControls(input, () => input.pressEmote(1));
+  const touch = new TouchControls(input);
   ui.appendChild(touch.root);
   canvas.addEventListener('click', () => { if (input.enabled) input.requestPointerLock(); });
 
-  const app = new App(r, input, ui);
+  const fps = document.createElement('div');
+  fps.className = 'fps';
+  ui.appendChild(fps);
+  const applySettings = (s: Settings, reload: boolean) => {
+    input.sensitivity = s.sensitivity;
+    input.invertY = s.invertY;
+    sound.setVolumes(s.sfx, s.music);
+    fps.classList.toggle('hidden', !s.showFps);
+    saveSettings(s);
+    if (reload) location.reload();
+  };
+  applySettings(settings, false);
+  sound.startMusic();
+  // A soft click for every menu button (not the on-screen game controls).
+  ui.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    if (t.closest('button') && !t.closest('.touch-layer')) sound.play('click');
+  });
+
+  const app = new App(r, input, ui, settings, applySettings);
   if (params.has('map')) app.practice(getMap(params.get('map')!).id);
   if (params.has('showcase') && app.game instanceof PracticeGame) {
     app.game.showcase(HATS.map((_, h) => ({ body: (h * 3) % 16, accent: (h * 5 + 2) % 16, pattern: h % PATTERNS.length, hat: h })));
@@ -51,9 +72,6 @@ async function boot() {
     },
   };
 
-  const fps = document.createElement('div');
-  fps.className = 'fps';
-  ui.appendChild(fps);
   let last = performance.now();
   let frames = 0, acc = 0;
   r.renderer.setAnimationLoop((now) => {

@@ -1,23 +1,28 @@
 import * as THREE from 'three';
 import type { Room } from '@colyseus/sdk';
 import {
-  CHAR, DT, MAX_PLAYERS, MSG_INPUT, MSG_SNAPSHOT, MSG_TILES, PhysicsWorld, Predictor, TICK_RATE, decodeSnapshot,
-  decodeTiles, encodeInput, getMap, lerpAngle, newPose, obstaclePose, poseApply, poseInvApply, type InputCmd,
-  type Look, type MapDef, type MapInfo, type Vec3,
+  CHAR, DT, FX_DIVE, FX_JUMP, FX_LAND, MAX_PLAYERS, MODE_DIVE, MODE_STUN, MSG_INPUT, MSG_SNAPSHOT, MSG_TILES,
+  PhysicsWorld, Predictor, TICK_RATE, decodeSnapshot, decodeTiles, encodeInput, getMap, lerpAngle, newPose,
+  obstaclePose, poseApply, poseInvApply, type InputCmd, type Look, type MapDef, type MapInfo, type Vec3,
 } from '@sp/shared';
+import { sound } from '../audio/sound';
 import type { Input } from '../input/Input';
 import { CameraRig } from '../render/CameraRig';
 import { CharacterRenderer, type CharPose } from '../render/characters';
+import { Effects } from '../render/effects';
 import { Environment } from '../render/environment';
 import { MapView } from '../render/MapView';
 import type { GameRenderer } from '../render/Renderer';
 import { Hud } from '../ui/hud';
 import { NameTags } from '../ui/nametags';
+import { playFx } from './PracticeGame';
 
 /** Remote players are shown this many ticks in the past so there is always a snapshot pair to blend. */
 const INTERP_TICKS = 3.5;
 /** Capsules closer than this are drawn pushed apart (render only). */
 const VISUAL_MIN_DIST = CHAR.radius * 2;
+/** Other players' sounds fade out over this distance (m). */
+const HEARING = 28;
 
 interface Sample {
   tick: number;
@@ -42,6 +47,7 @@ class Track {
   mode = 0;
   grounded = true;
   visible = false;
+  touching = false;
 
   push(s: Sample) {
     const last = this.samples[this.samples.length - 1];
@@ -67,6 +73,7 @@ const _r: Vec3 = [0, 0, 0];
 export class OnlineGame {
   readonly cam: CameraRig;
   private readonly chars: CharacterRenderer;
+  private readonly effects: Effects;
   readonly hud: Hud;
   private readonly tags: NameTags;
   private view: MapView | null = null;
@@ -83,6 +90,10 @@ export class OnlineGame {
   private readonly pktBuf = new Uint8Array(11);
   private ownEmote = 0;
   private ownEmoteT = 0;
+  /** Effect flags of our freshly predicted ticks since the last frame. */
+  private ownFx = 0;
+  /** When we last drew ourselves on this map (we leave the world the moment we qualify). */
+  private ownSeenAt = 0;
   readonly netStats = { maxCorrection: 0, lastCorrection: 0, recent: [] as number[] };
 
   // Server clock: serverTick ~= localTicks() + clockOffset (tracks the earliest-arrival envelope).
@@ -106,6 +117,8 @@ export class OnlineGame {
     this.cam = new CameraRig(r.camera);
     this.chars = new CharacterRenderer(r.mats, r.profile);
     r.scene.add(this.chars.group);
+    this.effects = new Effects(r.profile);
+    r.scene.add(this.effects.group);
     this.hud = new Hud(ui);
     this.tags = new NameTags(ui);
 
@@ -192,6 +205,7 @@ export class OnlineGame {
     this.r.scene.add(this.view.group);
     this.env = new Environment(this.r.scene, this.r.renderer, map.theme, this.r.profile, map.killY);
     this.tracks.clear();
+    this.ownSeenAt = 0;
     for (let s = 0; s < MAX_PLAYERS; s++) this.chars.hide(s);
     if (this.predictor) this.predictor.reset(this.pw, info);
     else {
@@ -200,6 +214,7 @@ export class OnlineGame {
         send: (pkt) => this.room.sendBytes(MSG_INPUT, encodeInput(pkt, this.pktBuf)),
         viewTick: () => this.serverNow() - INTERP_TICKS,
         rttTicks: () => (this.rttMs / 1000) * TICK_RATE,
+        fx: (bits) => { this.ownFx |= bits; },
         resynced: () => {
           this.smooth.set(0, 0, 0);
           this.cam.snap();
@@ -298,17 +313,24 @@ export class OnlineGame {
       pose.emote = this.ownEmote; pose.emoteT = this.ownEmoteT;
       pose.groundY = this.renderOwn.y;
       this.chars.update(this.mySlot, pose, dt);
+      if (this.ownFx) playFx(this.ownFx, this.effects, this.renderOwn.x, this.renderOwn.y, this.renderOwn.z, 1, this.cam);
+      this.ownSeenAt = performance.now();
     }
+    this.ownFx = 0;
 
     // Everyone else.
     const staleBefore = this.serverNow() - 20;
     for (const [slot, tr] of this.tracks) {
+      const wasGrounded = tr.grounded, wasMode = tr.mode;
       if (tr.lastSeen < staleBefore || !this.sampleTrack(tr, renderTick, present - start)) {
         if (tr.visible) { tr.visible = false; this.chars.hide(slot); }
         continue;
       }
+      if (tr.visible) this.remoteFx(tr, wasGrounded, wasMode);
       tr.visible = true;
-      if (p.active) this.separate(tr.pos, this.renderOwn);
+      const touching = p.active && this.separate(tr.pos, this.renderOwn);
+      if (touching && !tr.touching && Math.hypot(p.own.vx, p.own.vz) > 2.5) sound.play('bump', 0.8);
+      tr.touching = touching;
       const em = this.currentEmote(tr);
       if (tr.emote !== em) { tr.emote = em; tr.emoteStart = performance.now(); }
       const pose = this.pose;
@@ -323,6 +345,7 @@ export class OnlineGame {
     this.tags.endFrame();
 
     this.view.update(present - start, dt, this.pw);
+    this.effects.update(dt);
 
     // Camera: follow ourselves, or spectate someone while we are out.
     if (p.active) this.focus.copy(this.renderOwn);
@@ -339,15 +362,43 @@ export class OnlineGame {
    * Draws someone we bumped into pushed clear of us right away. Their real shove only reaches us a round trip
    * later; without this we would appear to run through them for a moment. Render-only.
    */
-  private separate(pos: THREE.Vector3, self: THREE.Vector3) {
-    if (Math.abs(pos.y - self.y) > CHAR.centerHeight * 2) return;
+  private separate(pos: THREE.Vector3, self: THREE.Vector3): boolean {
+    if (Math.abs(pos.y - self.y) > CHAR.centerHeight * 2) return false;
     const dx = pos.x - self.x, dz = pos.z - self.z;
     const d2 = dx * dx + dz * dz;
-    if (d2 >= VISUAL_MIN_DIST * VISUAL_MIN_DIST) return;
+    if (d2 >= VISUAL_MIN_DIST * VISUAL_MIN_DIST) return false;
     const d = Math.sqrt(d2);
     const nx = d > 1e-4 ? dx / d : 1, nz = d > 1e-4 ? dz / d : 0;
     pos.x = self.x + nx * VISUAL_MIN_DIST;
     pos.z = self.z + nz * VISUAL_MIN_DIST;
+    return true;
+  }
+
+  /** Sounds and dust for someone else, read off their interpolated state; quieter with distance. */
+  private remoteFx(tr: Track, wasGrounded: boolean, wasMode: number) {
+    const c = this.r.camera.position;
+    const vol = 0.7 * (1 - Math.hypot(tr.pos.x - c.x, tr.pos.y - c.y, tr.pos.z - c.z) / HEARING);
+    if (vol <= 0) return;
+    let fx = 0;
+    if (wasGrounded && !tr.grounded && tr.vel.y > 2 && tr.mode !== MODE_DIVE) fx |= FX_JUMP;
+    if (!wasGrounded && tr.grounded && tr.vel.y < -1) fx |= FX_LAND;
+    if (tr.mode === MODE_DIVE && wasMode !== MODE_DIVE) fx |= FX_DIVE;
+    if (fx) playFx(fx, this.effects, tr.pos.x, tr.pos.y, tr.pos.z, vol);
+    if (tr.mode === MODE_STUN && wasMode !== MODE_STUN) sound.play('hit', vol);
+  }
+
+  /** A burst of confetti over a player (qualifying, the champion on the podium). False if they are not in view. */
+  celebrate(sessionId: string, count = 90): boolean {
+    let at: THREE.Vector3 | null = null;
+    for (const [slot, info] of this.slots) {
+      if (info.sessionId !== sessionId) continue;
+      const tr = this.tracks.get(slot);
+      if (slot === this.mySlot && performance.now() - this.ownSeenAt < 2000) at = this.renderOwn;
+      else if (tr?.visible) at = tr.pos;
+    }
+    if (!at) return false;
+    this.effects.confetti(at.x, at.y + 1.6, at.z, count);
+    return true;
   }
 
   private currentEmote(tr: Track) {
@@ -437,8 +488,9 @@ export class OnlineGame {
   dispose() {
     clearInterval(this.pingTimer);
     for (const u of this.unsub) u();
-    this.r.scene.remove(this.chars.group);
+    this.r.scene.remove(this.chars.group, this.effects.group);
     this.chars.dispose();
+    this.effects.dispose();
     if (this.view) {
       this.r.scene.remove(this.view.group);
       this.view.dispose();
