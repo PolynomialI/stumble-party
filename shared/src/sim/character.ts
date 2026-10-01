@@ -191,7 +191,11 @@ function slideMove(pw: PhysicsWorld, p: { x: number; y: number; z: number }, dx:
     _dir.x = rx / len; _dir.y = ry / len; _dir.z = rz / len;
     const h = pw.world.castShape(p, IDENT_ROT, _dir, cap, 0, len, true,
       RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, QUERY_SOLID, undefined, excludeBody);
-    if (!h) {
+    const into = h ? _dir.x * h.normal1.x + _dir.y * h.normal1.y + _dir.z * h.normal1.z : 0;
+    // No hit, or only grazing a surface we already touch (moving along/away from it): take the full move.
+    // Treating a zero-distance graze as a block would stall a wall-hugger for a tick, and whether a cast
+    // reports one hinges on sub-millimetre differences, which also made client and server disagree.
+    if (!h || into > -0.05) {
       p.x += rx; p.y += ry; p.z += rz;
       break;
     }

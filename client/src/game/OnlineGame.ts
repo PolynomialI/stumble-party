@@ -1,10 +1,9 @@
 import * as THREE from 'three';
 import type { Room } from '@colyseus/sdk';
 import {
-  CHAR, CharState, DT, MAX_PLAYERS, MSG_INPUT, MSG_SNAPSHOT, MSG_TILES, NO_INPUT, PhysicsWorld, TICK_RATE, clamp,
-  decodeSnapshot, decodeTiles, encodeInput, getMap, lerpAngle, newPose, obstaclePose, poseApply, poseInvApply,
-  pushAgainst, resolveObstacleHits, stepCharacter, type InputCmd, type InputPacket, type Look, type MapDef,
-  type MapInfo, type Vec3,
+  CHAR, DT, MAX_PLAYERS, MSG_INPUT, MSG_SNAPSHOT, MSG_TILES, PhysicsWorld, Predictor, TICK_RATE, decodeSnapshot,
+  decodeTiles, encodeInput, getMap, lerpAngle, newPose, obstaclePose, poseApply, poseInvApply, type InputCmd,
+  type Look, type MapDef, type MapInfo, type Vec3,
 } from '@sp/shared';
 import type { Input } from '../input/Input';
 import { CameraRig } from '../render/CameraRig';
@@ -15,12 +14,10 @@ import type { GameRenderer } from '../render/Renderer';
 import { Hud } from '../ui/hud';
 import { NameTags } from '../ui/nametags';
 
-const RING = 256;
 /** Remote players are shown this many ticks in the past so there is always a snapshot pair to blend. */
 const INTERP_TICKS = 3.5;
-/** How far ahead of the server our inputs should arrive (ticks). */
-const TARGET_LEAD = 2.5;
-const MAX_STEPS_PER_FRAME = 8;
+/** Capsules closer than this are drawn pushed apart (render only). */
+const VISUAL_MIN_DIST = CHAR.radius * 2;
 
 interface Sample {
   tick: number;
@@ -40,13 +37,11 @@ class Track {
   emote = 0;
   emoteStart = 0;
   readonly pos = new THREE.Vector3();
-  readonly prevPos = new THREE.Vector3();
   readonly vel = new THREE.Vector3();
   yaw = 0;
   mode = 0;
   grounded = true;
   visible = false;
-  primed = false;
 
   push(s: Sample) {
     const last = this.samples[this.samples.length - 1];
@@ -66,39 +61,29 @@ const _pose = newPose();
 const _pose2 = newPose();
 const _a: Vec3 = [0, 0, 0];
 const _b: Vec3 = [0, 0, 0];
+const _r: Vec3 = [0, 0, 0];
 
 /** Networked play: predicts our own character, interpolates everyone else, renders the room's map. */
 export class OnlineGame {
   readonly cam: CameraRig;
   private readonly chars: CharacterRenderer;
-  private readonly hud: Hud;
+  readonly hud: Hud;
   private readonly tags: NameTags;
   private view: MapView | null = null;
   private env: Environment | null = null;
   private map: MapDef | null = null;
   pw: PhysicsWorld | null = null;
   info: MapInfo | null = null;
+  predictor: Predictor | null = null;
 
-  // Own prediction.
-  readonly own = new CharState();
-  private readonly prevOwn = new CharState();
-  private predTick = 0;
-  private acc = 0;
-  private synced = false;
-  ownActive = false;
-  private rate = 1;
-  private leadAvg = TARGET_LEAD;
-  private readonly inputs: (InputCmd & { tick: number })[] = new Array(RING);
-  private readonly states: { tick: number; s: CharState }[] = Array.from({ length: RING }, () => ({ tick: -1, s: new CharState() }));
+  /** Visual offset that eases out prediction corrections. */
   private readonly smooth = new THREE.Vector3();
   private readonly renderOwn = new THREE.Vector3();
   private readonly cmd: InputCmd = { mx: 0, mz: 0, buttons: 0 };
-  private readonly pkt: InputPacket = { tick: 0, mx: 0, mz: 0, buttons: 0, viewTick: 0 };
   private readonly pktBuf = new Uint8Array(11);
   private ownEmote = 0;
   private ownEmoteT = 0;
-  /** Prediction health counters (debug overlay / tests). */
-  readonly netStats = { snapshots: 0, replays: 0, resyncs: 0, maxCorrection: 0, lastCorrection: 0, recent: [] as number[], why: [] as string[], lead: 0, leadAvg: 0, rate: 1, ahead: 0 };
+  readonly netStats = { maxCorrection: 0, lastCorrection: 0, recent: [] as number[] };
 
   // Server clock: serverTick ~= localTicks() + clockOffset (tracks the earliest-arrival envelope).
   private clockOffset = NaN;
@@ -129,9 +114,18 @@ export class OnlineGame {
     this.unsub.push(room.onMessage('map', (info: MapInfo) => this.onMap(info)));
     room.onStateChange(() => this.syncPlayers());
     this.syncPlayers();
+    // Ask for the map only now that our handlers exist (earlier messages could be dropped).
     room.send('ready');
     this.measurePing();
     this.pingTimer = window.setInterval(() => this.measurePing(), 2000);
+  }
+
+  get ownActive(): boolean {
+    return !!this.predictor?.active;
+  }
+
+  get own() {
+    return this.predictor?.own ?? null;
   }
 
   private measurePing() {
@@ -180,9 +174,12 @@ export class OnlineGame {
 
   private onMap(info: MapInfo) {
     const map = getMap(info.id);
-    const sameMap = this.info && this.info.v === info.v && this.map === map;
+    const sameLoad = this.info && this.info.v === info.v && this.map === map;
     this.info = info;
-    if (sameMap) return;
+    if (sameLoad) {
+      this.predictor?.reset(this.pw!, info);
+      return;
+    }
     this.pw?.free();
     if (this.view) {
       this.r.scene.remove(this.view.group);
@@ -196,9 +193,19 @@ export class OnlineGame {
     this.env = new Environment(this.r.scene, this.r.renderer, map.theme, this.r.profile, map.killY);
     this.tracks.clear();
     for (let s = 0; s < MAX_PLAYERS; s++) this.chars.hide(s);
-    this.synced = false;
-    this.ownActive = false;
-    for (const st of this.states) st.tick = -1;
+    if (this.predictor) this.predictor.reset(this.pw, info);
+    else {
+      this.predictor = new Predictor(this.pw, info, {
+        sample: () => this.input.sample(this.cam.yaw, this.cmd),
+        send: (pkt) => this.room.sendBytes(MSG_INPUT, encodeInput(pkt, this.pktBuf)),
+        viewTick: () => this.serverNow() - INTERP_TICKS,
+        rttTicks: () => (this.rttMs / 1000) * TICK_RATE,
+        resynced: () => {
+          this.smooth.set(0, 0, 0);
+          this.cam.snap();
+        },
+      });
+    }
     this.cam.snap();
   }
 
@@ -214,7 +221,7 @@ export class OnlineGame {
 
   private onSnapshot(buf: Uint8Array) {
     const snap = decodeSnapshot(buf);
-    if (!this.info || !this.pw || snap.mapVersion !== this.info.v) return;
+    if (!this.info || !this.predictor || snap.mapVersion !== this.info.v) return;
 
     const sample = snap.tick - this.localTicks();
     const nowMs = performance.now();
@@ -233,167 +240,59 @@ export class OnlineGame {
       tr.lastSeen = snap.tick;
     }
 
-    if (snap.own) this.reconcile(snap.tick, snap.own, snap.lead);
-    else if (this.ownActive) {
-      this.ownActive = false;
-      this.synced = false;
-      if (this.mySlot >= 0) this.chars.hide(this.mySlot);
+    const p = this.predictor;
+    const wasActive = p.active;
+    const before = p.active ? p.renderPos(_a) : null;
+    const result = p.onSnapshot(snap.tick, snap.own, snap.lead);
+    if (result === 'replay' && before) {
+      // Keep the drawn position continuous; the offset eases out over ~100 ms.
+      const after = p.renderPos(_b);
+      this.smooth.x += before[0] - after[0];
+      this.smooth.y += before[1] - after[1];
+      this.smooth.z += before[2] - after[2];
+      const c = Math.hypot(before[0] - after[0], before[1] - after[1], before[2] - after[2]);
+      this.netStats.lastCorrection = c;
+      this.netStats.maxCorrection = Math.max(this.netStats.maxCorrection, c);
+      this.netStats.recent.push(+c.toFixed(3));
+      if (this.netStats.recent.length > 24) this.netStats.recent.shift();
+      if (this.smooth.lengthSq() > 9) this.smooth.set(0, 0, 0);
+    } else if (result === 'inactive' && wasActive && this.mySlot >= 0) {
+      this.chars.hide(this.mySlot);
     }
-  }
-
-  private rttTicks() {
-    return (this.rttMs / 1000) * TICK_RATE;
-  }
-
-  private reconcile(T: number, server: CharState, lead: number) {
-    const pw = this.pw!;
-    const start = this.info!.start;
-    this.netStats.snapshots++;
-
-    // (Re)start prediction a round trip + margin ahead of this snapshot. The input clock only ever moves
-    // forward: the server drops inputs stamped at or before ones it already has.
-    const behind = this.synced && T >= this.predTick;
-    if (!this.synced || behind) {
-      const want = T + Math.ceil(this.rttTicks() + TARGET_LEAD) + (behind ? 2 : 0);
-      this.resync(server, this.synced ? Math.max(want, this.predTick + 1) : want, behind ? 'behind' : '');
-      return;
-    }
-
-    // Lead feedback. -128 means "no input of yours has arrived yet": nothing to learn from it.
-    if (lead > -128) {
-      this.leadAvg += (lead - this.leadAvg) * 0.12;
-      if (lead < TARGET_LEAD - 30) {
-        this.resync(server, this.predTick + Math.round(TARGET_LEAD - lead), `late ${lead}`);
-        return;
-      }
-      this.rate = 1 + clamp((TARGET_LEAD - this.leadAvg) * 0.04, -0.25, 0.25);
-    }
-    this.netStats.lead = lead;
-    this.netStats.ahead = this.predTick - T;
-    this.netStats.leadAvg = +this.leadAvg.toFixed(2);
-    this.netStats.rate = +this.rate.toFixed(3);
-
-    const h = this.states[T % RING];
-    if (h.tick === T && near(h.s, server)) return;
-
-    // Misprediction: rewind to the authoritative state and replay our buffered inputs.
-    const alpha = this.acc;
-    const before = this.renderOwn.clone();
-    this.own.copyFrom(server);
-    pw.setTime(T - start);
-    this.states[T % RING].tick = T;
-    this.states[T % RING].s.copyFrom(server);
-    for (let k = T + 1; k <= this.predTick; k++) {
-      if (k === this.predTick) this.prevOwn.copyFrom(this.own);
-      const inp = this.inputs[k % RING];
-      this.simulate(k, inp && inp.tick === k ? inp : NO_INPUT);
-    }
-    if (T === this.predTick) this.prevOwn.copyFrom(this.own);
-    const p = this.prevOwn, s = this.own;
-    const after = new THREE.Vector3(
-      p.px + (s.px - p.px) * alpha, p.py + (s.py - p.py) * alpha - CHAR.centerHeight, p.pz + (s.pz - p.pz) * alpha);
-    this.smooth.copy(before).sub(after);
-    this.netStats.replays++;
-    this.netStats.lastCorrection = this.smooth.length();
-    this.netStats.recent.push(+this.netStats.lastCorrection.toFixed(3));
-    if (this.netStats.recent.length > 24) this.netStats.recent.shift();
-    this.netStats.maxCorrection = Math.max(this.netStats.maxCorrection, this.netStats.lastCorrection);
-    if (this.smooth.lengthSq() > 9) this.smooth.set(0, 0, 0);
-  }
-
-  /** Adopts the server's state and continues predicting from `predTick`. */
-  private resync(server: CharState, predTick: number, why: string) {
-    if (this.synced && why) {
-      this.netStats.resyncs++;
-      this.netStats.why.push(why);
-    }
-    this.own.copyFrom(server);
-    this.prevOwn.copyFrom(server);
-    this.renderOwn.set(server.px, server.py - CHAR.centerHeight, server.pz);
-    this.predTick = predTick;
-    this.pw!.setTime(predTick - this.info!.start);
-    for (const st of this.states) st.tick = -1;
-    this.acc = 0;
-    this.rate = 1;
-    this.leadAvg = TARGET_LEAD;
-    this.smooth.set(0, 0, 0);
-    if (!this.ownActive) this.cam.snap();
-    this.synced = true;
-    this.ownActive = true;
-  }
-
-  /** One predicted tick for our own character (also used for replays). */
-  private simulate(k: number, cmd: InputCmd) {
-    const pw = this.pw!;
-    const info = this.info!;
-    stepCharacter(pw, this.own, k <= info.freeze ? NO_INPUT : cmd);
-    pw.setTime(k - info.start);
-    resolveObstacleHits(pw, this.own);
-    for (const tr of this.tracks.values()) {
-      if (tr.visible) pushAgainst(this.own, tr.pos.x, tr.pos.y + CHAR.centerHeight, tr.pos.z);
-    }
-    const st = this.states[k % RING];
-    st.tick = k;
-    st.s.copyFrom(this.own);
-  }
-
-  private predictTick() {
-    const cmd = this.input.sample(this.cam.yaw, this.cmd);
-    if (!this.synced || !this.ownActive || !this.pw) return;
-    const k = this.predTick + 1;
-    const pkt = this.pkt;
-    pkt.tick = k;
-    pkt.mx = cmd.mx;
-    pkt.mz = cmd.mz;
-    pkt.buttons = cmd.buttons;
-    pkt.viewTick = Math.max(0, Math.floor(this.serverNow() - INTERP_TICKS));
-    this.room.sendBytes(MSG_INPUT, encodeInput(pkt, this.pktBuf));
-    const slot = this.inputs[k % RING];
-    if (slot) { slot.tick = k; slot.mx = cmd.mx; slot.mz = cmd.mz; slot.buttons = cmd.buttons; }
-    else this.inputs[k % RING] = { tick: k, mx: cmd.mx, mz: cmd.mz, buttons: cmd.buttons };
-    this.prevOwn.copyFrom(this.own);
-    this.simulate(k, cmd);
-    this.predTick = k;
   }
 
   // ------------------------------------------------------------------ per frame
 
   frame(dt: number) {
-    this.acc += dt * TICK_RATE * this.rate;
-    let steps = 0;
-    while (this.acc >= 1 && steps < MAX_STEPS_PER_FRAME) {
-      this.acc -= 1;
-      this.predictTick();
-      steps++;
-    }
-    if (this.acc >= 1) this.acc = 0; // long hitch: drop the backlog, the server holds our last input
+    const p = this.predictor;
+    if (p) p.advance(dt);
+    else this.input.sample(this.cam.yaw, this.cmd); // keep consuming presses while loading
 
     const e = this.input.takeEmote();
-    if (e && this.ownActive) {
+    if (e && p?.active) {
       this.room.send('emote', e);
       this.ownEmote = e;
       this.ownEmoteT = 0;
     }
     this.ownEmoteT += dt;
 
-    if (!this.info || !this.map || !this.view) return;
+    if (!this.info || !this.map || !this.view || !p) return;
     const start = this.info.start;
-    const present = this.synced ? this.predTick - 1 + this.acc : this.serverNow();
+    const present = p.synced ? p.predTick - 1 + p.acc : this.serverNow();
     const renderTick = this.serverNow() - INTERP_TICKS;
     this.chars.beginFrame(dt);
     this.tags.beginFrame();
 
     // Own character.
     this.smooth.multiplyScalar(Math.exp(-dt * 12));
-    if (this.ownActive && this.mySlot >= 0) {
-      const a = this.acc, p = this.prevOwn, s = this.own;
-      this.renderOwn.set(
-        p.px + (s.px - p.px) * a, p.py + (s.py - p.py) * a - CHAR.centerHeight, p.pz + (s.pz - p.pz) * a,
-      ).add(this.smooth);
+    if (p.active && this.mySlot >= 0) {
+      p.renderPos(_r);
+      this.renderOwn.set(_r[0], _r[1], _r[2]).add(this.smooth);
+      const s = p.own, prev = p.prev;
       if (this.ownEmoteT > 2.6 || Math.hypot(s.vx, s.vz) > 1 || !s.grounded) this.ownEmote = 0;
       const pose = this.pose;
       pose.x = this.renderOwn.x; pose.y = this.renderOwn.y; pose.z = this.renderOwn.z;
-      pose.yaw = lerpAngle(p.yaw, s.yaw, a);
+      pose.yaw = lerpAngle(prev.yaw, s.yaw, p.acc);
       pose.vx = s.vx; pose.vy = s.vy; pose.vz = s.vz;
       pose.mode = s.mode; pose.grounded = s.grounded;
       pose.emote = this.ownEmote; pose.emoteT = this.ownEmoteT;
@@ -409,7 +308,9 @@ export class OnlineGame {
         continue;
       }
       tr.visible = true;
-      if (tr.emote !== this.currentEmote(tr)) { tr.emote = this.currentEmote(tr); tr.emoteStart = performance.now(); }
+      if (p.active) this.separate(tr.pos, this.renderOwn);
+      const em = this.currentEmote(tr);
+      if (tr.emote !== em) { tr.emote = em; tr.emoteStart = performance.now(); }
       const pose = this.pose;
       pose.x = tr.pos.x; pose.y = tr.pos.y; pose.z = tr.pos.z; pose.yaw = tr.yaw;
       pose.vx = tr.vel.x; pose.vy = tr.vel.y; pose.vz = tr.vel.z;
@@ -424,7 +325,7 @@ export class OnlineGame {
     this.view.update(present - start, dt, this.pw);
 
     // Camera: follow ourselves, or spectate someone while we are out.
-    if (this.ownActive) this.focus.copy(this.renderOwn);
+    if (p.active) this.focus.copy(this.renderOwn);
     else {
       const target = this.spectateTarget();
       if (target) this.focus.copy(target.pos);
@@ -432,6 +333,21 @@ export class OnlineGame {
     this.cam.update(dt, this.focus, this.input.takeLook(), this.input.zoomDelta, this.pw);
     this.input.zoomDelta = 0;
     this.env?.update(dt, this.focus);
+  }
+
+  /**
+   * Draws someone we bumped into pushed clear of us right away. Their real shove only reaches us a round trip
+   * later; without this we would appear to run through them for a moment. Render-only.
+   */
+  private separate(pos: THREE.Vector3, self: THREE.Vector3) {
+    if (Math.abs(pos.y - self.y) > CHAR.centerHeight * 2) return;
+    const dx = pos.x - self.x, dz = pos.z - self.z;
+    const d2 = dx * dx + dz * dz;
+    if (d2 >= VISUAL_MIN_DIST * VISUAL_MIN_DIST) return;
+    const d = Math.sqrt(d2);
+    const nx = d > 1e-4 ? dx / d : 1, nz = d > 1e-4 ? dz / d : 0;
+    pos.x = self.x + nx * VISUAL_MIN_DIST;
+    pos.z = self.z + nz * VISUAL_MIN_DIST;
   }
 
   private currentEmote(tr: Track) {
@@ -465,7 +381,6 @@ export class OnlineGame {
         }
       }
     }
-    tr.prevPos.copy(tr.pos);
     const start = this.info!.start;
     if (a.obs >= 0 && a.obs === b.obs && this.map && this.map.obstacles[a.obs]) {
       const def = this.map.obstacles[a.obs];
@@ -481,10 +396,9 @@ export class OnlineGame {
       tr.pos.set(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
     }
     tr.yaw = lerpAngle(a.yaw, b.yaw, Math.min(1, t));
-    const near = t < 0.5 ? a : b;
-    tr.mode = near.mode;
-    tr.grounded = near.grounded;
-    if (!tr.primed) { tr.prevPos.copy(tr.pos); tr.primed = true; }
+    const nearest = t < 0.5 ? a : b;
+    tr.mode = nearest.mode;
+    tr.grounded = nearest.grounded;
     // Velocity from the snapshot pair drives run cycles and squash/stretch.
     const span = Math.max(1, b.tick - a.tick) * DT;
     tr.vel.set((b.x - a.x) / span, (b.y - a.y) / span, (b.z - a.z) / span);
@@ -512,10 +426,6 @@ export class OnlineGame {
     return this.slots.get(this.spectate)?.name ?? '';
   }
 
-  get hudRef() {
-    return this.hud;
-  }
-
   dispose() {
     clearInterval(this.pingTimer);
     for (const u of this.unsub) u();
@@ -530,11 +440,4 @@ export class OnlineGame {
     this.hud.dispose();
     this.tags.dispose();
   }
-}
-
-/** Close enough that replaying would change nothing visible. */
-function near(a: CharState, b: CharState): boolean {
-  return Math.abs(a.px - b.px) < 0.01 && Math.abs(a.py - b.py) < 0.01 && Math.abs(a.pz - b.pz) < 0.01 &&
-    Math.abs(a.vx - b.vx) < 0.05 && Math.abs(a.vy - b.vy) < 0.05 && Math.abs(a.vz - b.vz) < 0.05 &&
-    a.mode === b.mode && a.grounded === b.grounded;
 }

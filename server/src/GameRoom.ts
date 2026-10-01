@@ -76,8 +76,7 @@ export class GameRoom extends Room<{ state: GameState }> {
     const at = respawnPoint(this.sim.map, -1, slot);
     sp.state.spawn(at.x, at.y, at.z, at.yaw);
     sp.active = true;
-    this.sendMapInfo(client);
-    this.sendTileState(client);
+    // Map + tile state go out when the client says it is ready (its handlers exist by then).
   }
 
   onDrop(client: Client) {

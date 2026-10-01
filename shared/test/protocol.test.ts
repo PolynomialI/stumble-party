@@ -58,7 +58,7 @@ describe('protocol', () => {
   it('keeps snapshots compact', () => {
     const entries = Array.from({ length: 32 }, (_, i) => ({ slot: i, x: i, y: 0, z: i, yaw: 0, mode: 0, grounded: true, emote: 0, groundObs: -1 }));
     const bytes = encodeSnapshot(1, 2, 0, new CharState(), encodePlayers(entries)).byteLength;
-    expect(bytes).toBeLessThan(400);
+    expect(bytes).toBeLessThan(420);
   });
 
   it('round-trips tile events', () => {

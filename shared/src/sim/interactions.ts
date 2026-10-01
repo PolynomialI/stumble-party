@@ -2,11 +2,30 @@ import { CHAR, FX_BUMP, MODE_DIVE, knock, type CharState } from './character';
 
 const MIN_DIST = CHAR.radius * 2 * 0.95;
 const MAX_DY = CHAR.halfHeight * 2 + CHAR.radius * 1.4;
+/**
+ * Share of a shove the charging player takes. Zero: whoever runs into someone keeps their momentum and the
+ * one being hit gets shoved. That keeps the charger's own client prediction exact (see Predictor).
+ */
+const CHARGER_SHARE = 0;
+const BOUNCE = 1.1;
 
 /**
- * Soft capsule-vs-capsule shove between two players. Positions are split evenly (the next move's
- * depenetration keeps anyone from being pushed into walls) and closing speed is exchanged with a bit
- * of bounce. Returns true if they touched.
+ * How much of a collision `self` absorbs, from both players' speeds toward each other along n (self -> other).
+ * Whoever is charging in holds their ground; whoever is being run into gets shoved. Equal (or no) closing
+ * speeds split it evenly.
+ */
+export function shoveShare(selfVx: number, selfVz: number, otherVx: number, otherVz: number, nx: number, nz: number): number {
+  const vs = Math.max(0, selfVx * nx + selfVz * nz);
+  const vo = Math.max(0, -(otherVx * nx + otherVz * nz));
+  const total = vs + vo;
+  if (total < 0.5) return 0.5;
+  return Math.min(1 - CHARGER_SHARE, Math.max(CHARGER_SHARE, vo / total));
+}
+
+/**
+ * Capsule-vs-capsule shove between two simulated players (server). Positional overlap and closing speed are
+ * shared by `shoveShare`; the next move's depenetration keeps anyone from being pushed into walls.
+ * Returns true if they touched.
  */
 export function pushPlayers(a: CharState, b: CharState): boolean {
   const dy = b.py - a.py;
@@ -17,41 +36,22 @@ export function pushPlayers(a: CharState, b: CharState): boolean {
   let d = Math.sqrt(d2);
   let nx: number, nz: number;
   if (d < 1e-4) {
-    // Perfectly stacked: separate deterministically.
-    nx = 1; nz = 0; d = 0;
+    nx = 1; nz = 0; d = 0; // perfectly stacked: separate deterministically
   } else {
     nx = dx / d; nz = dz / d;
   }
+  const wa = shoveShare(a.vx, a.vz, b.vx, b.vz, nx, nz);
+  const wb = 1 - wa;
   const overlap = MIN_DIST - d;
-  a.px -= nx * overlap * 0.5; a.pz -= nz * overlap * 0.5;
-  b.px += nx * overlap * 0.5; b.pz += nz * overlap * 0.5;
+  a.px -= nx * overlap * wa; a.pz -= nz * overlap * wa;
+  b.px += nx * overlap * wb; b.pz += nz * overlap * wb;
   const rv = (b.vx - a.vx) * nx + (b.vz - a.vz) * nz;
   if (rv < 0) {
-    const j = -rv * 0.62;
-    a.vx -= nx * j; a.vz -= nz * j;
-    b.vx += nx * j; b.vz += nz * j;
+    const j = -rv * BOUNCE;
+    a.vx -= nx * j * wa; a.vz -= nz * j * wa;
+    b.vx += nx * j * wb; b.vz += nz * j * wb;
     if (-rv > 3) { a.fx |= FX_BUMP; b.fx |= FX_BUMP; }
   }
-  return true;
-}
-
-/**
- * Client-side prediction of bumping into someone we only see (interpolated, not simulated):
- * we take the whole correction ourselves, treating them as immovable for this tick.
- */
-export function pushAgainst(self: CharState, ox: number, oy: number, oz: number): boolean {
-  const dy = oy - self.py;
-  if (Math.abs(dy) > MAX_DY) return false;
-  const dx = ox - self.px, dz = oz - self.pz;
-  const d2 = dx * dx + dz * dz;
-  if (d2 >= MIN_DIST * MIN_DIST || d2 < 1e-8) return false;
-  const d = Math.sqrt(d2);
-  const nx = dx / d, nz = dz / d;
-  const overlap = MIN_DIST - d;
-  self.px -= nx * overlap * 0.5;
-  self.pz -= nz * overlap * 0.5;
-  const vn = self.vx * nx + self.vz * nz;
-  if (vn > 0) { self.vx -= nx * vn * 0.62; self.vz -= nz * vn * 0.62; }
   return true;
 }
 

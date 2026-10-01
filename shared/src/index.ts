@@ -11,3 +11,4 @@ export * from './game/course';
 export * from './sim/bot';
 export * from './net/protocol';
 export * from './sim/interactions';
+export * from './net/predictor';

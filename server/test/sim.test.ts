@@ -52,14 +52,20 @@ describe('MatchSim input handling', () => {
     expect(jumps).toBe(1);
   });
 
-  it('drops duplicate and absurdly early inputs', () => {
+  it('lets a restarted (backwards) input stream replace the old timeline', () => {
+    const { sim, p } = lobbySim();
+    for (let t = 5; t <= 9; t++) sim.queueInput('p0', inp(t, 0, 1));
+    sim.queueInput('p0', inp(6, 1, 0));
+    expect(p[0].queue.map((q) => q.tick)).toEqual([5, 6]);
+    expect(p[0].queue[1].mx).toBe(1);
+  });
+
+  it('does not queue absurdly early inputs but reports the client clock', () => {
     const { sim, p } = lobbySim();
     sim.queueInput('p0', inp(5, 0, 1));
-    sim.queueInput('p0', inp(5, 1, 0));
-    sim.queueInput('p0', inp(4, 1, 0));
-    expect(p[0].queue.length).toBe(1);
     sim.queueInput('p0', inp(10_000, 1, 0));
     expect(p[0].queue.length).toBe(1);
+    expect(p[0].newestTick).toBe(10_000);
   });
 
   it('ignores inputs while frozen (countdown)', () => {

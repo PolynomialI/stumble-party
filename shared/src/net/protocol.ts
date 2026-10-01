@@ -76,7 +76,8 @@ export interface Snapshot {
   players: RemoteEntry[];
 }
 
-const OWN_BYTES = 15 * 4 + 1 + 1 + 2 + 2 + 1;
+// Position as float64 (so a resync adopts the server's exact bits), the rest float32.
+const OWN_BYTES = 3 * 8 + 12 * 4 + 1 + 1 + 2 + 2 + 1;
 const ENTRY_BYTES = 10;
 
 /** Encodes the shared part (every active player). Reused for all recipients of a tick. */
@@ -100,7 +101,9 @@ export function encodePlayers(entries: readonly RemoteEntry[]): Uint8Array {
 }
 
 function writeOwn(v: DataView, o: number, c: CharState): number {
-  const f = [c.px, c.py, c.pz, c.vx, c.vy, c.vz, c.yaw, c.modeT, c.stunDur, c.airT, c.jumpBuf, c.convX, c.convZ, c.hitCd, 0];
+  v.setFloat64(o, c.px, true); v.setFloat64(o + 8, c.py, true); v.setFloat64(o + 16, c.pz, true);
+  o += 24;
+  const f = [c.vx, c.vy, c.vz, c.yaw, c.modeT, c.stunDur, c.airT, c.jumpBuf, c.convX, c.convZ, c.hitCd, 0];
   for (const x of f) { v.setFloat32(o, x, true); o += 4; }
   v.setUint8(o++, c.mode);
   v.setUint8(o++, (c.grounded ? 1 : 0) | (c.diveUsed ? 2 : 0));
@@ -111,12 +114,13 @@ function writeOwn(v: DataView, o: number, c: CharState): number {
 }
 
 function readOwn(v: DataView, o: number, c: CharState): number {
-  c.px = v.getFloat32(o, true); c.py = v.getFloat32(o + 4, true); c.pz = v.getFloat32(o + 8, true);
-  c.vx = v.getFloat32(o + 12, true); c.vy = v.getFloat32(o + 16, true); c.vz = v.getFloat32(o + 20, true);
-  c.yaw = v.getFloat32(o + 24, true); c.modeT = v.getFloat32(o + 28, true); c.stunDur = v.getFloat32(o + 32, true);
-  c.airT = v.getFloat32(o + 36, true); c.jumpBuf = v.getFloat32(o + 40, true); c.convX = v.getFloat32(o + 44, true);
-  c.convZ = v.getFloat32(o + 48, true); c.hitCd = v.getFloat32(o + 52, true);
-  o += 60;
+  c.px = v.getFloat64(o, true); c.py = v.getFloat64(o + 8, true); c.pz = v.getFloat64(o + 16, true);
+  o += 24;
+  c.vx = v.getFloat32(o, true); c.vy = v.getFloat32(o + 4, true); c.vz = v.getFloat32(o + 8, true);
+  c.yaw = v.getFloat32(o + 12, true); c.modeT = v.getFloat32(o + 16, true); c.stunDur = v.getFloat32(o + 20, true);
+  c.airT = v.getFloat32(o + 24, true); c.jumpBuf = v.getFloat32(o + 28, true); c.convX = v.getFloat32(o + 32, true);
+  c.convZ = v.getFloat32(o + 36, true); c.hitCd = v.getFloat32(o + 40, true);
+  o += 48;
   c.mode = v.getUint8(o++);
   const b = v.getUint8(o++);
   c.grounded = (b & 1) !== 0;

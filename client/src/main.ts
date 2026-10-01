@@ -42,12 +42,12 @@ async function boot() {
     },
     net() {
       const g = app.game;
-      return g instanceof OnlineGame ? { ...g.netStats, rtt: g.rttMs } : null;
+      return g instanceof OnlineGame ? { ...g.netStats, ...g.predictor?.stats, rtt: g.rttMs } : null;
     },
     self() {
       const g = app.game;
-      if (!(g instanceof OnlineGame) || !g.ownActive) return null;
-      return { slot: g.mySlot, x: g.own.px, y: g.own.py, z: g.own.pz };
+      const own = g instanceof OnlineGame && g.ownActive ? g.own : null;
+      return own ? { slot: (g as OnlineGame).mySlot, x: own.px, y: own.py, z: own.pz } : null;
     },
   };
 

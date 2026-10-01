@@ -120,10 +120,16 @@ export class MatchSim {
   queueInput(id: string, pkt: InputPacket) {
     const p = this.players.get(id);
     if (!p || p.bot) return;
-    if (pkt.tick <= p.newestTick || pkt.tick > this.tick + MAX_AHEAD) {
-      // Duplicate / reordered / absurdly early: still remember where the client's clock is.
-      if (pkt.tick > this.tick + MAX_AHEAD) p.newestTick = pkt.tick;
+    if (pkt.tick > this.tick + MAX_AHEAD) {
+      // Absurdly early: don't queue it, but report where the client's clock is so it can resync.
+      p.newestTick = pkt.tick;
       return;
+    }
+    if (pkt.tick <= p.newestTick) {
+      // The client restarted its clock backwards: drop queued inputs from its old timeline.
+      let n = p.queue.length;
+      while (n > 0 && p.queue[n - 1].tick >= pkt.tick) n--;
+      p.queue.length = n;
     }
     p.newestTick = pkt.tick;
     p.viewTick = pkt.viewTick;

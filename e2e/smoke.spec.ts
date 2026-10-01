@@ -24,33 +24,36 @@ async function walk(page: Page, key: string, ms: number) {
 }
 
 test('two browser clients see each other move', async ({ browser }) => {
+  // Unique names: players from an earlier run may still sit in the room during their reconnection window.
+  const tag = Math.random().toString(36).slice(2, 6);
+  const A = `Alpha${tag}`, B = `Bravo${tag}`;
   const a = await (await browser.newContext()).newPage();
   const b = await (await browser.newContext()).newPage();
-  await join(a, 'Alpha');
-  await join(b, 'Bravo');
+  await join(a, A);
+  await join(b, B);
 
   // Both end up in the same room and can see each other.
-  await expect.poll(() => seen(b, 'Alpha'), { timeout: 30_000 }).not.toBeNull();
-  await expect.poll(() => seen(a, 'Bravo'), { timeout: 30_000 }).not.toBeNull();
+  await expect.poll(() => seen(b, A), { timeout: 30_000 }).not.toBeNull();
+  await expect.poll(() => seen(a, B), { timeout: 30_000 }).not.toBeNull();
 
   // Alpha runs forward; Bravo's view of Alpha must follow.
-  const before = (await seen(b, 'Alpha'))!;
+  const before = (await seen(b, A))!;
   await walk(a, 'KeyW', 1500);
   await expect.poll(async () => {
-    const now = await seen(b, 'Alpha');
+    const now = await seen(b, A);
     return now ? Math.hypot(now.x - before.x, now.z - before.z) : 0;
   }, { timeout: 15_000 }).toBeGreaterThan(3);
 
   // And the other way round.
-  const before2 = (await seen(a, 'Bravo'))!;
+  const before2 = (await seen(a, B))!;
   await walk(b, 'KeyD', 1200);
   await expect.poll(async () => {
-    const now = await seen(a, 'Bravo');
+    const now = await seen(a, B);
     return now ? Math.hypot(now.x - before2.x, now.z - before2.z) : 0;
   }, { timeout: 15_000 }).toBeGreaterThan(2);
 
   // What Bravo sees of Alpha matches where Alpha thinks it is (within interpolation slack).
   const aSelf = (await a.evaluate(() => window.__sp.self()))!;
-  const aSeen = (await seen(b, 'Alpha'))!;
+  const aSeen = (await seen(b, A))!;
   expect(Math.hypot(aSelf.x - aSeen.x, aSelf.z - aSeen.z)).toBeLessThan(1.5);
 });
