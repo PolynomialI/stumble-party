@@ -422,6 +422,14 @@ export class OnlineGame {
     this.cam.snap();
   }
 
+  /** Turn the camera to look the champion in the face (podium). */
+  facePodium() {
+    this.cam.yaw = 0;
+    this.cam.pitch = 0.18;
+    this.cam.distance = 5.5;
+    this.cam.snap();
+  }
+
   get spectatingName(): string {
     return this.slots.get(this.spectate)?.name ?? '';
   }

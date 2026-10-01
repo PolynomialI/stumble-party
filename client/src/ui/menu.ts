@@ -3,6 +3,8 @@ import type { Profile } from '../profile';
 
 export interface MenuActions {
   play(): void;
+  createPrivate(fillBots: boolean): void;
+  joinCode(code: string): void;
   practice(): void;
   rename(name: string): void;
 }
@@ -11,6 +13,8 @@ export interface MenuActions {
 export class Menu {
   readonly root: HTMLDivElement;
   private readonly nameInput: HTMLInputElement;
+  private readonly privatePanel: HTMLDivElement;
+  private readonly codeInput: HTMLInputElement;
 
   constructor(parent: HTMLElement, profile: Profile, actions: MenuActions) {
     const [a, b] = GAME_TITLE.toUpperCase().split(' ');
@@ -24,18 +28,50 @@ export class Menu {
           <input class="name-input" maxlength="${NAME_MAX}" autocomplete="off" spellcheck="false" />
         </label>
         <button class="btn btn-play" data-act="play">Play</button>
-        <button class="btn btn-sec" data-act="practice">Practice course</button>
+        <div class="btn-row">
+          <button class="btn btn-sec" data-act="private">Private room</button>
+          <button class="btn btn-sec" data-act="practice">Practice</button>
+        </div>
+        <div class="private-panel hidden">
+          <button class="btn btn-alt" data-act="create">Create a room</button>
+          <label class="check"><input type="checkbox" class="bots-check" checked /> Fill empty spots with bots</label>
+          <div class="join-row">
+            <input class="code-input" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false" aria-label="Room code" />
+            <button class="btn btn-alt" data-act="join">Join</button>
+          </div>
+        </div>
         <p class="menu-hint">WASD / arrows move · Space jump · Shift dive · 1–4 emotes</p>
       </div>`;
     this.nameInput = this.root.querySelector('.name-input')!;
+    this.privatePanel = this.root.querySelector('.private-panel')!;
+    this.codeInput = this.root.querySelector('.code-input')!;
+    const bots = this.root.querySelector<HTMLInputElement>('.bots-check')!;
     this.nameInput.value = profile.name;
     this.nameInput.addEventListener('change', () => {
       const n = sanitizeName(this.nameInput.value, profile.name);
       this.nameInput.value = n;
       actions.rename(n);
     });
-    this.root.querySelector('[data-act=play]')!.addEventListener('click', () => actions.play());
-    this.root.querySelector('[data-act=practice]')!.addEventListener('click', () => actions.practice());
+    this.codeInput.addEventListener('input', () => {
+      this.codeInput.value = this.codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    });
+    this.codeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') join();
+    });
+    const join = () => {
+      const code = this.codeInput.value.trim();
+      if (code.length === 5) actions.joinCode(code);
+      else this.codeInput.focus();
+    };
+    const on = (act: string, fn: () => void) => this.root.querySelector(`[data-act=${act}]`)!.addEventListener('click', fn);
+    on('play', () => actions.play());
+    on('practice', () => actions.practice());
+    on('private', () => {
+      this.privatePanel.classList.toggle('hidden');
+      if (!this.privatePanel.classList.contains('hidden')) this.codeInput.focus();
+    });
+    on('create', () => actions.createPrivate(bots.checked));
+    on('join', join);
     parent.appendChild(this.root);
   }
 

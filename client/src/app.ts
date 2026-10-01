@@ -1,18 +1,22 @@
+import type { Room } from '@colyseus/sdk';
 import { getMap } from '@sp/shared';
 import { OnlineGame } from './game/OnlineGame';
 import { PracticeGame } from './game/PracticeGame';
 import type { Input } from './input/Input';
-import { quickPlay, waitForServer } from './net/connection';
+import { createPrivate, joinByCode, quickPlay, waitForServer } from './net/connection';
 import { loadProfile, saveProfile, type Profile } from './profile';
 import type { GameRenderer } from './render/Renderer';
+import { MatchUI } from './ui/matchui';
 import { Menu, Overlay } from './ui/menu';
 
 type Game = PracticeGame | OnlineGame;
+type Join = { kind: 'quick' } | { kind: 'create'; fillBots: boolean } | { kind: 'code'; code: string };
 
 /** Top-level flow: title screen (with a live island behind it), practice, online play. */
 export class App {
   game: Game | null = null;
   profile: Profile;
+  private matchUi: MatchUI | null = null;
   private readonly menu: Menu;
   private readonly overlay: Overlay;
   private readonly leaveBtn: HTMLButtonElement;
@@ -21,7 +25,9 @@ export class App {
   constructor(private readonly r: GameRenderer, private readonly input: Input, private readonly ui: HTMLElement) {
     this.profile = loadProfile();
     this.menu = new Menu(ui, this.profile, {
-      play: () => void this.playOnline(),
+      play: () => void this.goOnline({ kind: 'quick' }),
+      createPrivate: (fillBots) => void this.goOnline({ kind: 'create', fillBots }),
+      joinCode: (code) => void this.goOnline({ kind: 'code', code }),
       practice: () => this.practice('tumbletop'),
       rename: (name) => {
         this.profile.name = name;
@@ -39,6 +45,8 @@ export class App {
   }
 
   private setGame(g: Game | null) {
+    this.matchUi?.dispose();
+    this.matchUi = null;
     if (this.game instanceof OnlineGame) this.game.room.leave().catch(() => {});
     this.game?.dispose();
     this.game = g;
@@ -60,17 +68,29 @@ export class App {
     this.setGame(new PracticeGame(this.r, this.input, getMap(mapId), this.profile.look, this.ui));
   }
 
-  async playOnline() {
+  private async connect(how: Join): Promise<Room> {
+    const profile = { name: this.profile.name, look: this.profile.look };
+    if (how.kind === 'quick') return quickPlay(profile);
+    if (how.kind === 'create') return createPrivate(profile, how.fillBots);
+    try {
+      return await joinByCode(how.code, profile);
+    } catch {
+      throw new Error(`No room with code ${how.code}. Check the code, or the match may have started already.`);
+    }
+  }
+
+  async goOnline(how: Join) {
     this.menu.show(false);
     const ctl = (this.cancel = new AbortController());
-    this.overlay.show('Connecting…', 'Cancel', () => this.showMenu());
+    const cancel = () => this.showMenu();
+    this.overlay.show('Connecting…', 'Cancel', cancel);
     try {
       await waitForServer((s) => {
-        this.overlay.show(`Waking up the game server… ${s}s\n(free hosting sleeps when idle — this can take up to a minute)`, 'Cancel', () => this.showMenu());
+        this.overlay.show(`Waking up the game server… ${s}s\n(free hosting sleeps when idle; this can take up to a minute)`, 'Cancel', cancel);
       }, ctl.signal);
       if (ctl.signal.aborted) return;
-      this.overlay.show('Finding a match…', 'Cancel', () => this.showMenu());
-      const room = await quickPlay({ name: this.profile.name, look: this.profile.look });
+      this.overlay.show(how.kind === 'quick' ? 'Finding a match…' : 'Joining the room…', 'Cancel', cancel);
+      const room = await this.connect(how);
       if (ctl.signal.aborted) {
         room.leave().catch(() => {});
         return;
@@ -79,6 +99,10 @@ export class App {
       this.input.enabled = true;
       const game = new OnlineGame(this.r, this.input, this.ui, room);
       this.setGame(game);
+      this.matchUi = new MatchUI(this.ui, room, game, {
+        playAgain: () => void this.goOnline({ kind: 'quick' }),
+        menu: () => this.showMenu(),
+      });
       room.onLeave((code: number) => {
         if (this.game !== game) return;
         this.showMenu();
@@ -92,5 +116,6 @@ export class App {
 
   frame(dt: number) {
     this.game?.frame(dt);
+    this.matchUi?.update();
   }
 }

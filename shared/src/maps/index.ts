@@ -1,10 +1,14 @@
 import { LOBBY } from './lobby';
 import { TUMBLETOP } from './tumbletop';
+import { SPIN_CYCLE } from './spincycle';
+import { LAST_STAND } from './laststand';
 import type { MapDef } from './types';
 
 export const MAPS: Record<string, MapDef> = {
   [LOBBY.id]: LOBBY,
   [TUMBLETOP.id]: TUMBLETOP,
+  [SPIN_CYCLE.id]: SPIN_CYCLE,
+  [LAST_STAND.id]: LAST_STAND,
 };
 
 export function getMap(id: string): MapDef {

@@ -1,28 +1,61 @@
-import { Room, type Client } from '@colyseus/core';
+import { Room, matchMaker, type Client } from '@colyseus/core';
 import {
   MAX_PLAYERS, MSG_INPUT, MSG_SNAPSHOT, MSG_TILES, EMOTE_COUNT, TICK_RATE, decodeInput, encodePlayers,
-  encodeSnapshot, encodeTiles, getMap, randomIdentity, respawnPoint, sanitizeLook, sanitizeName, type MapInfo,
+  encodeSnapshot, encodeTiles, getMap, randomIdentity, sanitizeLook, sanitizeName, type MapInfo,
 } from '@sp/shared';
+import { Match } from './Match';
 import { MatchSim, type SimPlayer } from './MatchSim';
-import { GameState, PlayerState, ST_LOBBY } from './schema';
+import { GameState, PlayerState, ST_ELIMINATED, ST_LOBBY } from './schema';
 import { TickMeter, roomStats } from './stats';
+
+interface CreateOptions {
+  mode?: unknown;
+  fillBots?: unknown;
+}
 
 interface JoinOptions {
   name?: unknown;
   look?: unknown;
 }
 
+/** Join codes avoid look-alike characters (0/O, 1/I/L). */
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+async function uniqueCode(): Promise<string> {
+  for (;;) {
+    let code = '';
+    for (let i = 0; i < 5; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+    const taken = await matchMaker.query({ roomId: code });
+    if (taken.length === 0) return code;
+  }
+}
+
 export class GameRoom extends Room<{ state: GameState }> {
   maxClients = MAX_PLAYERS;
   sim!: MatchSim;
+  match!: Match;
   private readonly meter = new TickMeter();
   private readonly simBySession = new Map<string, SimPlayer>();
 
-  onCreate() {
+  async onCreate(options: CreateOptions = {}) {
+    const isPrivate = options.mode === 'private';
     this.state = new GameState();
+    this.state.isPrivate = isPrivate;
+    this.state.fillBots = isPrivate ? options.fillBots !== false : true;
+    if (isPrivate) {
+      this.roomId = await uniqueCode();
+      this.state.code = this.roomId;
+      await this.setPrivate(true);
+    }
     this.patchRate = 100;
     this.maxMessagesPerSecond = 120;
     this.sim = new MatchSim(getMap('lobby'));
+    this.match = new Match(this.state, this.sim, {
+      broadcastMap: () => this.broadcast('map', this.mapInfo()),
+      setLocked: (locked) => { void (locked ? this.lock() : this.unlock()); },
+      matchOver: () => this.onMatchOver(),
+    }, { quick: !isPrivate, seed: Math.floor(Math.random() * 2 ** 31) });
+    this.match.enterLobby();
 
     this.onMessageBytes(MSG_INPUT, (client, buf: Uint8Array) => {
       const pkt = decodeInput(buf);
@@ -35,6 +68,14 @@ export class GameRoom extends Room<{ state: GameState }> {
     });
     this.onMessage('emote', (client, id: unknown) => {
       if (typeof id === 'number' && Number.isInteger(id) && id >= 1 && id <= EMOTE_COUNT) this.sim.emote(client.sessionId, id);
+    });
+    this.onMessage('start', (client) => {
+      if (client.sessionId === this.state.host && this.state.isPrivate) this.match.start();
+    });
+    this.onMessage('bots', (client, on: unknown) => {
+      if (client.sessionId === this.state.host && this.state.isPrivate && this.state.phase === 'lobby' && typeof on === 'boolean') {
+        this.state.fillBots = on;
+      }
     });
 
     this.setFixedTimestep(() => this.update(), TICK_RATE);
@@ -67,15 +108,13 @@ export class GameRoom extends Room<{ state: GameState }> {
     ps.accent = look.accent;
     ps.pattern = look.pattern;
     ps.hat = look.hat;
-    ps.status = ST_LOBBY;
+    ps.status = this.state.phase === 'lobby' ? ST_LOBBY : ST_ELIMINATED;
     this.state.players.set(client.sessionId, ps);
     if (!this.state.host) this.state.host = client.sessionId;
 
     const sp = this.sim.addPlayer(client.sessionId, slot, null);
     this.simBySession.set(client.sessionId, sp);
-    const at = respawnPoint(this.sim.map, -1, slot);
-    sp.state.spawn(at.x, at.y, at.z, at.yaw);
-    sp.active = true;
+    this.match.onJoin(client.sessionId);
     // Map + tile state go out when the client says it is ready (its handlers exist by then).
   }
 
@@ -101,6 +140,7 @@ export class GameRoom extends Room<{ state: GameState }> {
   }
 
   onLeave(client: Client) {
+    this.match.onLeave(client.sessionId);
     this.state.players.delete(client.sessionId);
     this.sim.removePlayer(client.sessionId);
     this.simBySession.delete(client.sessionId);
@@ -115,13 +155,17 @@ export class GameRoom extends Room<{ state: GameState }> {
     this.sim.dispose();
   }
 
+  private onMatchOver() {
+    if (this.state.isPrivate) this.match.enterLobby();
+    else void this.disconnect();
+  }
+
   private mapInfo(): MapInfo {
     return { v: this.sim.mapVersion, id: this.sim.map.id, start: this.sim.roundStart, freeze: this.sim.freezeUntil };
   }
 
-  private sendMapInfo(client?: Client) {
-    if (client) client.send('map', this.mapInfo());
-    else this.broadcast('map', this.mapInfo());
+  private sendMapInfo(client: Client) {
+    client.send('map', this.mapInfo());
   }
 
   private sendTileState(client: Client) {
@@ -138,6 +182,7 @@ export class GameRoom extends Room<{ state: GameState }> {
       this.broadcastBytes(MSG_TILES, encodeTiles(this.sim.tileEvents), {});
       this.sim.tileEvents = [];
     }
+    this.match.tick();
     this.sendSnapshots();
     this.meter.sample(performance.now() - t0);
   }

@@ -12,3 +12,4 @@ export * from './sim/bot';
 export * from './net/protocol';
 export * from './sim/interactions';
 export * from './net/predictor';
+export * from './game/rules';

@@ -1,11 +1,10 @@
 import { schema, t, type SchemaType } from '@colyseus/schema';
+import { STATUS } from '@sp/shared';
 
-/** Player status within the current match. */
-export const ST_LOBBY = 0;
-export const ST_PLAYING = 1;
-export const ST_QUALIFIED = 2;
-export const ST_ELIMINATED = 3;
-export const ST_SPECTATING = 4;
+export const ST_LOBBY = STATUS.lobby;
+export const ST_PLAYING = STATUS.playing;
+export const ST_QUALIFIED = STATUS.qualified;
+export const ST_ELIMINATED = STATUS.eliminated;
 
 /** Slow-changing per-player info. Positions travel in the binary snapshots, not here. */
 export const PlayerState = schema({

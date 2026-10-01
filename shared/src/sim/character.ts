@@ -470,13 +470,13 @@ export function resolveObstacleHits(pw: PhysicsWorld, c: CharState): void {
     slideMove(pw, _p, nx * depth, ny * depth, nz * depth, ob.body);
     c.px = _p.x; c.py = _p.y; c.pz = _p.z;
 
-    if (ob.hit > 0) {
+    const pvh = Math.hypot(pv[0], pv[2]);
+    // Only a fast-moving hazard surface sends you flying; brushing a slowly turning hub just pushes.
+    if (ob.hit > 0 && pvh > 2) {
       if (c.hitCd <= 0) {
-        const pvh = Math.hypot(pv[0], pv[2]);
-        let dx = nx, dz = nz;
-        if (pvh > 0.5) { dx += (pv[0] / pvh) * 1.3; dz += (pv[2] / pvh) * 1.3; }
-        const strength = ob.hit * clamp(0.6 + pvh / 12, 0.6, 1.25);
-        knock(c, dx, dz, strength, 2 + ob.hit * 0.42);
+        const dx = nx + (pv[0] / pvh) * 1.3, dz = nz + (pv[2] / pvh) * 1.3;
+        const strength = ob.hit * clamp(0.45 + pvh / 16, 0.5, 1);
+        knock(c, dx, dz, strength, 2.5 + ob.hit * 0.3);
       }
     } else {
       // Solid mover: at least match its velocity along the contact normal.

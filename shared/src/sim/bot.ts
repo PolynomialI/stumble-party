@@ -100,6 +100,8 @@ const _b: Vec3 = [0, 0, 0];
 const _lo: Vec3 = [0, 0, 0];
 const _hi: Vec3 = [0, 0, 0];
 const _ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
+/** Bots treat floor that drops within this many ticks as already gone. */
+const SAFE_TICKS = 4 / DT;
 
 interface Danger {
   hit: boolean;
@@ -190,6 +192,17 @@ export class BotBrain {
     return !!pw.world.castRay(_ray, 4.5, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, QUERY_STATIC);
   }
 
+  /** Ground at (x, z) that will still be there a few seconds from now (not a tile about to drop). */
+  private safeGround(pw: PhysicsWorld, x: number, feetY: number, z: number): boolean {
+    _ray.origin = { x, y: feetY + 0.6, z };
+    const hit = pw.world.castRay(_ray, 4.5, true, RAPIER.QueryFilterFlags.EXCLUDE_SENSORS, QUERY_STATIC);
+    if (!hit) return false;
+    const tile = pw.info.get(hit.collider.handle)?.tile ?? -1;
+    if (tile < 0) return true;
+    const fall = pw.tileFallTick(pw.tiles[tile]);
+    return fall < 0 || fall - pw.tick > SAFE_TICKS;
+  }
+
   think(pw: PhysicsWorld, c: CharState, out: InputCmd): InputCmd {
     const t = pw.tick * DT;
     const feetY = c.py - CHAR.centerHeight;
@@ -201,7 +214,7 @@ export class BotBrain {
     if (this.decideT <= 0) {
       // Every half second, maybe "lose focus" (lower skill = more hits taken).
       this.decideT = 0.5;
-      this.ignoreHazards = this.rand() > 0.55 + this.skill * 0.43;
+      this.ignoreHazards = this.rand() < (1 - this.skill) * 0.3;
     }
     this.laneT -= DT;
     if (this.laneT <= 0) {
@@ -238,15 +251,18 @@ export class BotBrain {
     this.holdT = Math.max(0, this.holdT - DT);
     if (!this.ignoreHazards && c.mode === MODE_NORMAL) {
       const run = CHAR.runSpeed;
+      // Sample every tick: a fast sweeper crosses a spot in ~0.15 s and would slip between coarser samples.
       let goHit = false, stayHit = false, lowTop = 99, soon = false;
-      for (const h of [0.2, 0.4, 0.6]) {
+      for (let h = DT; h <= 0.6 + 1e-6; h += DT) {
         const g = this.danger(pw, c.px + dx * run * h, feetY, c.pz + dz * run * h, t + h);
         const s = this.danger(pw, c.px, feetY, c.pz, t + h);
-        if (g.hit) { goHit = true; lowTop = Math.min(lowTop, g.top); if (h <= 0.4) soon = true; }
-        if (s.hit) { stayHit = true; lowTop = Math.min(lowTop, s.top); if (h <= 0.4) soon = true; }
+        if (g.hit) { goHit = true; lowTop = Math.min(lowTop, g.top); if (h <= 0.5) soon = true; }
+        if (s.hit) { stayHit = true; lowTop = Math.min(lowTop, s.top); if (h <= 0.5) soon = true; }
+        if (goHit && stayHit) break;
       }
       if (goHit || stayHit) {
         const jumpable = lowTop < 1.25;
+        // A jump keeps the feet above a shin-high bar from ~0.1 s to ~0.55 s after take-off.
         if (jumpable && soon && c.grounded && this.jumpCd <= 0) {
           out.buttons |= BTN_JUMP | BTN_JUMP_PRESS;
           this.jumpCd = 0.6;
@@ -294,16 +310,17 @@ export class BotBrain {
     const arena = pw.map.bot.arena;
     const feetY = c.py - CHAR.centerHeight;
     const reached = this.wander && (c.px - this.wander[0]) ** 2 + (c.pz - this.wander[2]) ** 2 < 1;
-    const unsafe = this.wander && !this.groundAhead(pw, this.wander[0], feetY, this.wander[2]);
+    // Re-plan if the destination, or the ground under our own feet, is about to drop.
+    const unsafe = (this.wander && !this.safeGround(pw, this.wander[0], feetY, this.wander[2])) ||
+      !this.safeGround(pw, c.px, feetY, c.pz);
     if (!this.wander || this.wanderT <= 0 || reached || unsafe) {
       this.wanderT = 1.5 + this.rand() * 2.5;
       let best: Vec3 | null = null;
       let bestScore = -Infinity;
       for (let i = 0; i < 8; i++) {
         let x: number, z: number;
-        if (pw.tiles.length > 0) {
+        if (pw.tiles.length > 0 && (i % 2 === 0 || !arena)) {
           const tile = pw.tiles[Math.floor(this.rand() * pw.tiles.length)];
-          if (!pw.tileSolidAt(tile, pw.tick) || tile.triggerTick >= 0) continue;
           x = tile.def.piece.pos[0];
           z = tile.def.piece.pos[2];
         } else if (arena) {
@@ -314,7 +331,7 @@ export class BotBrain {
           x = c.px + (this.rand() - 0.5) * 8;
           z = c.pz + (this.rand() - 0.5) * 8;
         }
-        if (!this.groundAhead(pw, x, feetY, z)) continue;
+        if (!this.safeGround(pw, x, feetY, z)) continue;
         const d = Math.hypot(x - c.px, z - c.pz);
         const centre = arena ? Math.hypot(x - arena.center[0], z - arena.center[2]) : 0;
         const score = -Math.abs(d - 5) - centre * 0.3 + this.rand() * 2;

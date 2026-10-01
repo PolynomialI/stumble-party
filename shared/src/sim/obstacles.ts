@@ -24,8 +24,12 @@ export function spinAngle(speed: number, t: number, phase = 0, accel = 0, maxSpe
 const _base: Quat = [0, 0, 0, 1];
 const _local: Quat = [0, 0, 0, 1];
 
-/** Pose of an obstacle's pivot at round time `t` (seconds). Pure function of time, so client and server agree. */
+/**
+ * Pose of an obstacle's pivot at round time `t` (seconds). Pure function of time, so client and server agree.
+ * Obstacles hold their starting pose until GO (t = 0): nobody gets swept while frozen in the countdown.
+ */
 export function obstaclePose(def: ObstacleDef, t: number, out: Pose): Pose {
+  if (t < 0) t = 0;
   const r = def.rot;
   if (r) quatFromEuler(r[0], r[1], r[2], _base);
   else { _base[0] = 0; _base[1] = 0; _base[2] = 0; _base[3] = 1; }
