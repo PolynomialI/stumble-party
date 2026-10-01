@@ -47,4 +47,16 @@ export const SUNSET: Theme = {
   },
 };
 
+/** Twilight: violet sky, glowing candy colours. */
+export const TWILIGHT: Theme = {
+  skyTop: 0x241a6b, skyHorizon: 0xd77cf0, skyBottom: 0xf2c2ff, fog: 0xb98be6,
+  sunColor: 0xffd9f2, sunDir: [0.5, 0.55, -0.6], cloudTint: 0xf1d6ff,
+  palette: {
+    ...base,
+    floor: 0x4b3bd1, floorAlt: 0x6a5cf0, path: 0x5ff2e0, wall: 0xff5fa8, accent: 0xffc23d,
+    accentAlt: 0x37d6ff, hazard: 0xff4774, bounce: 0x7dff9a, tile: 0x6be4ff, tileAlt: 0xff8ad8,
+    trim: 0xf6eaff,
+  },
+};
+
 export const TEST_THEME = SUNNY;

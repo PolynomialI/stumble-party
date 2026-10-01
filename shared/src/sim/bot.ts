@@ -100,6 +100,8 @@ const _b: Vec3 = [0, 0, 0];
 const _lo: Vec3 = [0, 0, 0];
 const _hi: Vec3 = [0, 0, 0];
 const _ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 });
+/** How long before a jumpable hazard arrives a bot takes off (s); the jump peaks ~0.34 s after take-off. */
+const JUMP_LEAD = 0.36;
 /** Bots treat floor that drops within this many ticks as already gone. */
 const SAFE_TICKS = 4 / DT;
 
@@ -152,15 +154,18 @@ export class BotBrain {
   }
 
   private target(node: BotNode): [number, number] {
+    return [node.p[0] + this.laneOffset(node), node.p[2]];
+  }
+
+  private laneOffset(node: BotNode): number {
     if (node.lanes?.length) {
       const want = this.lane * 5;
-      const off = node.lanes.reduce((a, b) => (Math.abs(b - want) < Math.abs(a - want) ? b : a));
-      return [node.p[0] + off, node.p[2]];
+      return node.lanes.reduce((a, b) => (Math.abs(b - want) < Math.abs(a - want) ? b : a));
     }
     const spread = node.spread ?? 1.5;
     let off = this.lane * spread;
     if (node.avoid && Math.abs(off) < node.avoid) off = (off < 0 ? -1 : 1) * node.avoid;
-    return [node.p[0] + off, node.p[2]];
+    return off;
   }
 
   /** Predicts whether standing at (x, feetY, z) at time `t` (round seconds) overlaps any hazard. */
@@ -224,16 +229,18 @@ export class BotBrain {
 
     // Where do we want to go?
     let tx: number, tz: number;
-    let node: BotNode | null = null;
+    let takeOff = false;
     const path = pw.map.bot.path;
     if (path?.length) {
-      node = path[Math.min(this.wp, path.length - 1)];
+      let node = path[Math.min(this.wp, path.length - 1)];
       [tx, tz] = this.target(node);
-      const r = node.r ?? 2.2;
+      // Jump waypoints are take-off points: reach them (tightly) and jump; the next waypoint is the landing.
+      const r = node.r ?? (node.jump ? 0.55 : 2.2);
       const prev = path[Math.max(0, this.wp - 1)];
       const fx = node.p[0] - prev.p[0], fz = node.p[2] - prev.p[2];
       const passed = this.wp > 0 && (c.px - node.p[0]) * fx + (c.pz - node.p[2]) * fz > 0;
       if (((c.px - tx) ** 2 + (c.pz - tz) ** 2 < r * r || passed) && this.wp < path.length - 1) {
+        takeOff = !!node.jump;
         this.wp++;
         node = path[this.wp];
         [tx, tz] = this.target(node);
@@ -246,6 +253,15 @@ export class BotBrain {
     const dist = Math.hypot(dx, dz);
     if (dist > 1e-3) { dx /= dist; dz /= dist; }
     let speed = dist < 0.4 && !path ? 0 : 1;
+    // Short hops (stepping stones): approach a take-off point slowly so the jump does not overshoot the landing.
+    if (path?.length) {
+      const cur = path[Math.min(this.wp, path.length - 1)];
+      const land = path[Math.min(this.wp + 1, path.length - 1)];
+      if (cur.jump && dist < 3) {
+        const hop = Math.hypot(land.p[0] - cur.p[0], land.p[2] - cur.p[2]);
+        speed = Math.min(speed, Math.max(0.45, Math.min(1, hop / 4.6)));
+      }
+    }
 
     // Hazards: compare "keep going" vs "hold still" a moment ahead.
     this.holdT = Math.max(0, this.holdT - DT);
@@ -256,13 +272,13 @@ export class BotBrain {
       for (let h = DT; h <= 0.6 + 1e-6; h += DT) {
         const g = this.danger(pw, c.px + dx * run * h, feetY, c.pz + dz * run * h, t + h);
         const s = this.danger(pw, c.px, feetY, c.pz, t + h);
-        if (g.hit) { goHit = true; lowTop = Math.min(lowTop, g.top); if (h <= 0.5) soon = true; }
-        if (s.hit) { stayHit = true; lowTop = Math.min(lowTop, s.top); if (h <= 0.5) soon = true; }
+        if (g.hit) { goHit = true; lowTop = Math.min(lowTop, g.top); if (h <= JUMP_LEAD) soon = true; }
+        if (s.hit) { stayHit = true; lowTop = Math.min(lowTop, s.top); if (h <= JUMP_LEAD) soon = true; }
         if (goHit && stayHit) break;
       }
       if (goHit || stayHit) {
         const jumpable = lowTop < 1.25;
-        // A jump keeps the feet above a shin-high bar from ~0.1 s to ~0.55 s after take-off.
+        // Jump about an apex-time before impact: the feet are highest just as the bar arrives.
         if (jumpable && soon && c.grounded && this.jumpCd <= 0) {
           out.buttons |= BTN_JUMP | BTN_JUMP_PRESS;
           this.jumpCd = 0.6;
@@ -274,12 +290,12 @@ export class BotBrain {
     }
     if (this.holdT > 0) speed = 0;
 
-    // Gaps: jump when the ground ends ahead (tile bridges, small drops).
-    if (c.grounded && speed > 0 && this.jumpCd <= 0) {
-      const ahead = this.groundAhead(pw, c.px + dx * 1.3, feetY, c.pz + dz * 1.3);
-      if (!ahead || (node?.jump && dist < 3.2)) {
+    // Gaps: jump at a take-off waypoint, or when the ground runs out just ahead.
+    if ((c.grounded || c.airT < 0.08) && speed > 0 && this.jumpCd <= 0) {
+      const ahead = this.groundAhead(pw, c.px + dx * 0.9, feetY, c.pz + dz * 0.9);
+      if (takeOff || !ahead) {
         out.buttons |= BTN_JUMP | BTN_JUMP_PRESS;
-        this.jumpCd = 0.5;
+        this.jumpCd = 0.45;
       }
     }
 

@@ -13,7 +13,8 @@ function ring(r1: number, r2: number, segments: number, fallAt: number, warn: nu
       piece: {
         shape: 'box',
         size: [r2 * step * 1.01, 0.7, r2 - r1 - 0.06],
-        pos: [Math.sin(a) * mid, -0.35, Math.cos(a) * mid],
+        // Neighbours overlap near the inner edge; staggering every other one by 4 mm avoids z-fighting.
+        pos: [Math.sin(a) * mid, -0.35 - (i % 2) * 0.004, Math.cos(a) * mid],
         rot: [0, a, 0],
         round: 0.12,
         mat: i % 2 === 0 ? 'tile' : 'tileAlt',

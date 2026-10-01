@@ -216,7 +216,7 @@ export class MatchSim {
 
     for (const p of active) {
       const s = p.state;
-      if (s.grounded && s.groundTile >= 0 && this.pw.stepOnTile(s.groundTile, wt)) {
+      if (!frozen && s.grounded && s.groundTile >= 0 && this.pw.stepOnTile(s.groundTile, wt)) {
         this.tileEvents.push({ tile: s.groundTile, tick: wt });
       }
       if (s.py < this.map.killY) {

@@ -107,7 +107,7 @@ export const TUMBLETOP: MapDef = {
     pillar(-4, 58, 2.5), pillar(4, 58, 2.5), pillar(-4, 84, 2.5), pillar(4, 84, 2.5),
     // Conveyor climb.
     box([0, 2, RAMP_MID], [12, 1, RAMP_Z1 - RAMP_Z0], 'floorAlt'),
-    wedge([0, (RAMP_Y0 + RAMP_Y1) / 2, RAMP_MID], [12, RAMP_Y1 - RAMP_Y0, RAMP_Z1 - RAMP_Z0], 'path'),
+    wedge([0, (RAMP_Y0 + RAMP_Y1) / 2, RAMP_MID], [12, RAMP_Y1 - RAMP_Y0, RAMP_Z1 - RAMP_Z0], 'path', { tex: 'grid' }),
     box([0, rampY(RAMP_MID) + 0.06, RAMP_MID], [4, 0.24, RAMP_Z1 - RAMP_Z0 + 0.3], 'conveyor', {
       rot: [-SLOPE, 0, 0], surface: 'conveyor', power: 4, dir: [0, 0, -1], tex: 'chevron', round: 0.06,
     }),
@@ -169,8 +169,8 @@ export const TUMBLETOP: MapDef = {
       { p: [0, 2.5, 85], spread: 3 },
       { p: [3.4, rampY(94), 94], spread: 1 },
       { p: [0, 5.5, 105.5], spread: 3 },
-      { p: [0, 5.5, 113], spread: 2, jump: true },
-      { p: [0, 5.5, 119], spread: 2, jump: true },
+      { p: [0, 5.5, 113], spread: 2 },
+      { p: [0, 5.5, 119], spread: 2 },
       { p: [0, 5.5, 125], spread: 4 },
       { p: [0, 5.8, 131], spread: 3 },
       { p: [0, 5.5, 142], spread: 5 },

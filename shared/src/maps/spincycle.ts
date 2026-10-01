@@ -30,7 +30,7 @@ export const SPIN_CYCLE: MapDef = {
     cyl([0, -0.5, 0], R_FLOOR * 2, 1, 'floor', { tex: 'grid', round: 0.2 }),
     // Icy rim: walkable, but nobody keeps their footing for long.
     cyl([0, -0.56, 0], R_RIM * 2, 0.88, 'ice', { surface: 'ice', round: 0.3 }),
-    deco(cyl([0, -0.1, 0], R_FLOOR * 2 + 0.25, 0.22, 'white', { round: 0.1 })),
+    deco(cyl([0, -0.26, 0], R_FLOOR * 2 + 0.3, 0.22, 'white', { round: 0.1 })),
     ...rimBumpers,
     deco(cyl([0, -2.6, 0], R_RIM * 2 - 2, 3, 'rock', { round: 0.8 })),
     deco(ball([0, -8, 0], 15, 'rock')),

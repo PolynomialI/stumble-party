@@ -48,10 +48,12 @@ export function soloRace(mapId: string, seed: number, skill: number) {
 }
 
 describe('bots', () => {
-  it('finish Tumbletop Trail within the time limit', () => {
-    const results = [1, 2, 3, 4, 5, 6].map((seed) => soloRace('tumbletop', seed, 0.85));
-    const finished = results.filter((r) => r.time !== null);
-    console.log('tumbletop bot runs', JSON.stringify(results));
-    expect(finished.length).toBeGreaterThanOrEqual(5);
-  });
+  for (const mapId of ['tumbletop', 'bouncy', 'windmill']) {
+    it(`finish ${mapId} within the time limit`, () => {
+      const results = [1, 2, 3, 4, 5, 6].map((seed) => soloRace(mapId, seed, 0.85));
+      const finished = results.filter((r) => r.time !== null);
+      console.log(`${mapId} bot runs`, JSON.stringify(results));
+      expect(finished.length).toBeGreaterThanOrEqual(5);
+    });
+  }
 });

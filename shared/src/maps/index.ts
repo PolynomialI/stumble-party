@@ -2,6 +2,10 @@ import { LOBBY } from './lobby';
 import { TUMBLETOP } from './tumbletop';
 import { SPIN_CYCLE } from './spincycle';
 import { LAST_STAND } from './laststand';
+import { BOUNCY } from './bouncy';
+import { WINDMILL } from './windmill';
+import { TILE_TUMBLE } from './tiletumble';
+import { CHECKER } from './checker';
 import type { MapDef } from './types';
 
 export const MAPS: Record<string, MapDef> = {
@@ -9,6 +13,10 @@ export const MAPS: Record<string, MapDef> = {
   [TUMBLETOP.id]: TUMBLETOP,
   [SPIN_CYCLE.id]: SPIN_CYCLE,
   [LAST_STAND.id]: LAST_STAND,
+  [BOUNCY.id]: BOUNCY,
+  [WINDMILL.id]: WINDMILL,
+  [TILE_TUMBLE.id]: TILE_TUMBLE,
+  [CHECKER.id]: CHECKER,
 };
 
 export function getMap(id: string): MapDef {
